@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Docker Watcher</title>
+    <link rel="icon" type="image/png" href="https://www.docker.com/wp-content/uploads/2022/03/Moby-logo.png">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-content">
+                <img src="https://www.docker.com/wp-content/uploads/2022/03/Moby-logo.png" alt="Docker Logo" class="docker-logo">
+                <div class="header-text">
+                    <h1>Docker Watcher</h1>
+                    <p class="subtitle">Docker container monitor app</p>
+                </div>
+            </div>
+        </header>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>Immagini Docker</h3>
+                <div class="stat-value">{{ stats.images_count }}</div>
+            </div>
+            <div class="stat-card">
+                <h3>Container Totali</h3>
+                <div class="stat-value">{{ stats.total_containers }}</div>
+            </div>
+            <div class="stat-card">
+                <h3>In Esecuzione</h3>
+                <div class="stat-value">{{ stats.running_containers }}</div>
+            </div>
+            <div class="stat-card">
+                <h3>Container Fermati</h3>
+                <div class="stat-value">{{ stats.stopped_containers }}</div>
+            </div>
+            <div class="stat-card">
+                <h3>Consumo CPU dell'host</h3>
+                <div class="stat-value">{{ stats.cpu_usage }}%</div>
+            </div>
+            <div class="stat-card">
+                <h3>Consumo RAM dell'host</h3>
+                <div class="stat-value">{{ stats.ram_usage }}%</div>
+                <p class="stat-detail">{{ stats.ram_used_gb }} GB / {{ stats.ram_total_gb }} GB</p>
+            </div>
+        </div>
+
+        <div class="navbar">
+            <button class="nav-btn active" onclick="showSection('images')">📦 Immagini</button>
+            <button class="nav-btn" onclick="showSection('active')">🟢 Container Attivi</button>
+            <button class="nav-btn" onclick="showSection('inactive')">🔴 Container Non Attivi</button>
+        </div>
+
+        <div id="images" class="section-content active">
+            <div class="containers-section">
+                <h2 class="section-title">📦 Immagini Docker</h2>
+                
+                {% if images %}
+                    {% for image in images %}
+                    <div class="container-item">
+                        <div class="container-info">
+                            <h4>{{ image.name }}</h4>
+                            <p>ID: {{ image.id }} • Dimensione: {{ image.size }} MB • Creata: {{ image.created }}</p>
+                        </div>
+                        <span class="status {% if image.in_use %}running{% else %}stopped{% endif %}">
+                            {% if image.in_use %}IN USO{% else %}NON UTILIZZATA{% endif %}
+                        </span>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p style="text-align: center; color: #94a3b8; padding: 20px;">
+                        Nessuna immagine Docker trovata
+                    </p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div id="active" class="section-content">
+            <div class="containers-section">
+                <h2 class="section-title">🟢 Container Attivi</h2>
+                
+                {% if running_containers %}
+                    {% for container in running_containers %}
+                    <div class="container-item">
+                        <div class="container-info">
+                            <h4>{{ container.name }}</h4>
+                            <p>Immagine: {{ container.image }} • ID: {{ container.id }} • Porta: {{ container.ports }}</p>
+                        </div>
+                        <span class="status running">RUNNING</span>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p style="text-align: center; color: #94a3b8; padding: 20px;">
+                        Nessun container in esecuzione
+                    </p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div id="inactive" class="section-content">
+            <div class="containers-section">
+                <h2 class="section-title">🔴 Container Non Attivi</h2>
+                
+                {% if stopped_containers %}
+                    {% for container in stopped_containers %}
+                    <div class="container-item">
+                        <div class="container-info">
+                            <h4>{{ container.name }}</h4>
+                            <p>Immagine: {{ container.image }} • ID: {{ container.id }} • Porta: {{ container.ports }}</p>
+                        </div>
+                        <span class="status stopped">STOPPED</span>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p style="text-align: center; color: #94a3b8; padding: 20px;">
+                        Nessun container fermato
+                    </p>
+                {% endif %}
+            </div>
+        </div>
+
+        <button class="refresh-btn" onclick="location.reload()">🔄 Aggiorna</button>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
