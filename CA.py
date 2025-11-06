@@ -241,6 +241,70 @@ def api_containers(status):
     return jsonify(containers)
 
 
+@app.route('/api/container/<container_id>/stats')
+def container_stats(container_id):
+    if not client:
+        return jsonify({'error': 'Docker non disponibile'}), 503
+
+    try:
+        container = client.containers.get(container_id)
+        stats = container.stats(stream=False)
+        
+        # Calcola CPU usage
+        cpu_delta = stats["cpu_stats"]["cpu_usage"]["total_usage"] - stats["precpu_stats"]["cpu_usage"]["total_usage"]
+        system_delta = stats["cpu_stats"]["system_cpu_usage"] - stats["precpu_stats"]["system_cpu_usage"]
+        cpu_percent = 0.0
+        if system_delta > 0.0 and cpu_delta > 0.0:
+            cpu_percent = (cpu_delta / system_delta) * len(stats["cpu_stats"]["cpu_usage"]["percpu_usage"]) * 100.0
+        
+        # Calcola RAM usage
+        mem_usage = stats["memory_stats"]["usage"]
+        mem_limit = stats["memory_stats"]["limit"]
+        mem_percent = (mem_usage / mem_limit) * 100.0
+
+        # Converti in MB
+        mem_usage_mb = mem_usage / (1024 * 1024)
+        mem_limit_mb = mem_limit / (1024 * 1024)
+
+        # Network
+        net_input = 0
+        net_output = 0
+        if "networks" in stats:
+            for iface, data in stats["networks"].items():
+                net_input += data.get("rx_bytes", 0)
+                net_output += data.get("tx_bytes", 0)
+
+        # Disk I/O
+        blkio_stats = stats.get("blkio_stats", {}).get("io_service_bytes_recursive", [])
+        disk_read = disk_write = 0
+        for entry in blkio_stats:
+            if entry["op"].lower() == "read":
+                disk_read += entry["value"]
+            elif entry["op"].lower() == "write":
+                disk_write += entry["value"]
+
+        return jsonify({
+            "cpu_percent": round(cpu_percent, 2),
+            "mem_usage_mb": round(mem_usage_mb, 2),
+            "mem_limit_mb": round(mem_limit_mb, 2),
+            "mem_percent": round(mem_percent, 2),
+            "net_input_mb": round(net_input / (1024 * 1024), 2),
+            "net_output_mb": round(net_output / (1024 * 1024), 2),
+            "disk_read_mb": round(disk_read / (1024 * 1024), 2),
+            "disk_write_mb": round(disk_write / (1024 * 1024), 2),
+        })
+    except Exception as e:
+        print(f"Errore stats container {container_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/container/<container_id>/stats/history')
+def container_stats_history_api(container_id):
+    with stats_lock:
+        history = list(container_stats_history.get(container_id, []))
+    return jsonify(history)
+
+
 @app.route('/api/container/<container_id>/logs')
 def container_logs(container_id):
     if not client:
@@ -253,6 +317,55 @@ def container_logs(container_id):
     except Exception as e:
         print(f"Errore logs container {container_id}: {e}")
         return jsonify({'error': str(e)}), 500
+
+
+def collect_container_stats():
+    while True:
+        if client:
+            try:
+                for container in client.containers.list():
+                    stats = container.stats(stream=False)
+                    cpu_delta = stats["cpu_stats"]["cpu_usage"]["total_usage"] - stats["precpu_stats"]["cpu_usage"]["total_usage"]
+                    system_delta = stats["cpu_stats"]["system_cpu_usage"] - stats["precpu_stats"]["system_cpu_usage"]
+                    cpu_percent = (cpu_delta / system_delta) * len(stats["cpu_stats"]["cpu_usage"]["percpu_usage"]) * 100.0 if system_delta > 0.0 else 0.0
+
+                    mem_usage = stats["memory_stats"]["usage"]
+                    mem_usage_mb = mem_usage / (1024 * 1024)
+                    mem_percent = (mem_usage / stats["memory_stats"]["limit"]) * 100.0
+
+                    net_input = net_output = 0
+                    if "networks" in stats:
+                        for iface, data in stats["networks"].items():
+                            net_input += data.get("rx_bytes", 0)
+                            net_output += data.get("tx_bytes", 0)
+
+                    disk_read = disk_write = 0
+                    for entry in stats.get("blkio_stats", {}).get("io_service_bytes_recursive", []):
+                        if entry["op"].lower() == "read":
+                            disk_read += entry["value"]
+                        elif entry["op"].lower() == "write":
+                            disk_write += entry["value"]
+
+                    data_point = {
+                        "timestamp": datetime.utcnow().isoformat(),
+                        "cpu_percent": round(cpu_percent, 2),
+                        "mem_usage_mb": round(mem_usage_mb, 2),
+                        "mem_percent": round(mem_percent, 2),
+                        "net_input_mb": round(net_input / (1024 * 1024), 2),
+                        "net_output_mb": round(net_output / (1024 * 1024), 2),
+                        "disk_read_mb": round(disk_read / (1024 * 1024), 2),
+                        "disk_write_mb": round(disk_write / (1024 * 1024), 2),
+                    }
+
+                    with stats_lock:
+                        container_stats_history.setdefault(container.short_id, deque(maxlen=10080)).append(data_point)
+            except Exception as e:
+                print(f"Errore raccolta statistiche: {e}")
+        time.sleep(60)
+
+# Avvio del thread
+threading.Thread(target=collect_container_stats, daemon=True).start()
+
 
 
 if __name__ == '__main__':
