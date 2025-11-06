@@ -209,6 +209,89 @@ def api_images():
     return jsonify(images)
 
 
+@app.route('/api/container/<container_id>/stats')
+def container_stats(container_id):
+    try:
+        container = client.containers.get(container_id)
+        stats = container.stats(stream=False)
+        
+        # ===== CALCOLO CPU =====
+        cpu_delta = stats['cpu_stats']['cpu_usage']['total_usage'] - \
+                    stats['precpu_stats']['cpu_usage']['total_usage']
+        system_delta = stats['cpu_stats']['system_cpu_usage'] - \
+                       stats['precpu_stats']['system_cpu_usage']
+        cpu_count = stats['cpu_stats']['online_cpus']
+        
+        cpu_percent = 0.0
+        if system_delta > 0 and cpu_delta > 0:
+            cpu_percent = (cpu_delta / system_delta) * cpu_count * 100.0
+        
+        # ===== CALCOLO MEMORIA (RAM) =====
+        # Ottieni usage e limit dalla memoria
+        mem_usage = stats['memory_stats'].get('usage', 0)
+        mem_limit = stats['memory_stats'].get('limit', 0)
+        
+        # Converti in MB
+        mem_usage_mb = mem_usage / (1024 * 1024)
+        mem_limit_mb = mem_limit / (1024 * 1024)
+        
+        # Calcola percentuale
+        mem_percent = 0.0
+        if mem_limit > 0:
+            mem_percent = (mem_usage / mem_limit) * 100.0
+        
+        # ===== CALCOLO NETWORK I/O =====
+        networks = stats.get('networks', {})
+        net_input = 0
+        net_output = 0
+        
+        for interface, data in networks.items():
+            net_input += data.get('rx_bytes', 0)
+            net_output += data.get('tx_bytes', 0)
+        
+        # Converti in MB
+        net_input_mb = net_input / (1024 * 1024)
+        net_output_mb = net_output / (1024 * 1024)
+        
+        # ===== CALCOLO DISK I/O =====
+        blkio_stats = stats.get('blkio_stats', {})
+        io_service_bytes = blkio_stats.get('io_service_bytes_recursive', [])
+        
+        disk_read = 0
+        disk_write = 0
+        
+        # Somma tutte le operazioni di lettura e scrittura
+        for entry in io_service_bytes:
+            op = entry.get('op', '')
+            value = entry.get('value', 0)
+            
+            if op == 'Read':
+                disk_read += value
+            elif op == 'Write':
+                disk_write += value
+        
+        # Converti in MB
+        disk_read_mb = disk_read / (1024 * 1024)
+        disk_write_mb = disk_write / (1024 * 1024)
+        
+        return jsonify({
+            "cpu_percent": round(cpu_percent, 2),
+            "mem_usage_mb": round(mem_usage_mb, 2),
+            "mem_limit_mb": round(mem_limit_mb, 2),
+            "mem_percent": round(mem_percent, 2),
+            "net_input_mb": round(net_input_mb, 2),
+            "net_output_mb": round(net_output_mb, 2),
+            "disk_read_mb": round(disk_read_mb, 2),
+            "disk_write_mb": round(disk_write_mb, 2),
+        })
+        
+    except Exception as e:
+        print(f"Errore stats container {container_id}: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/container/<container_id>')
 def container_detail(container_id):
     if not client:
