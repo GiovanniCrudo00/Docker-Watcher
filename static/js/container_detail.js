@@ -315,13 +315,13 @@ document.addEventListener('DOMContentLoaded', function() {
     loadStatsHistory();
     
     // Prima lettura stats e log
-    updateRealtimeStats();
+    //updateRealtimeStats();
     updateLogs();
     
     // Aggiornamento automatico
     setInterval(updateRealtimeStats, 10000);   // Stats ogni 10 secondi (frequente per real-time)
     setInterval(updateLogs, 15000);             // Log ogni 15 secondi
-    setInterval(loadStatsHistory, 60000);       // Storico ogni 60 secondi (quando ci sono nuovi dati dal backend)
+    //setInterval(loadStatsHistory, 60000);       // Storico ogni 60 secondi (quando ci sono nuovi dati dal backend)
     
     console.log('✅ Auto-refresh attivo:');
     console.log('   📊 Stats real-time: ogni 10 secondi');
