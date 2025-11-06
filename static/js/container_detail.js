@@ -3,6 +3,7 @@
  */
 
 let cpuChart, memoryChart, networkChart, diskChart;
+let lastKnownUpdate = null;
 
 // Configurazione comune per i grafici
 const chartConfig = {
@@ -196,12 +197,20 @@ async function loadStatsHistory() {
  * Aggiorna le statistiche in tempo reale
  */
 async function updateRealtimeStats() {
+    const syncIndicator = document.getElementById('sync-indicator');
+    const lastUpdateSpan = document.getElementById('last-update');
+    
     try {
+        // Mostra stato di sincronizzazione
+        syncIndicator.classList.add('syncing');
+        
         const response = await fetch(`/api/container/${containerId}/stats`);
         const stats = await response.json();
 
         if (stats.error) {
             console.error('Errore:', stats.error);
+            lastUpdateSpan.textContent = 'Errore aggiornamento';
+            syncIndicator.classList.remove('syncing');
             return;
         }
 
@@ -234,8 +243,15 @@ async function updateRealtimeStats() {
             ramProgress.style.background = 'linear-gradient(90deg, #3b82f6, #2563eb)';
         }
 
+        // Aggiorna timestamp
+        const now = new Date();
+        lastUpdateSpan.textContent = `Aggiornato: ${now.toLocaleTimeString('it-IT')}`;
+        syncIndicator.classList.remove('syncing');
+
     } catch (error) {
         console.error('❌ Errore aggiornamento stats:', error);
+        lastUpdateSpan.textContent = 'Errore connessione';
+        syncIndicator.classList.remove('syncing');
     }
 }
 
@@ -303,9 +319,21 @@ document.addEventListener('DOMContentLoaded', function() {
     updateLogs();
     
     // Aggiornamento automatico
-    setInterval(updateRealtimeStats, 5000);  // Stats ogni 5 secondi
-    setInterval(updateLogs, 10000);  // Log ogni 10 secondi
-    setInterval(loadStatsHistory, 60000);  // Storico ogni minuto
+    setInterval(updateRealtimeStats, 10000);   // Stats ogni 10 secondi (frequente per real-time)
+    setInterval(updateLogs, 15000);             // Log ogni 15 secondi
+    setInterval(loadStatsHistory, 60000);       // Storico ogni 60 secondi (quando ci sono nuovi dati dal backend)
     
-    console.log('✅ Auto-refresh attivo');
+    console.log('✅ Auto-refresh attivo:');
+    console.log('   📊 Stats real-time: ogni 10 secondi');
+    console.log('   📄 Log: ogni 15 secondi');
+    console.log('   📈 Grafici storici: ogni 60 secondi');
+
+    document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'visible') {
+            console.log('📌 Pagina visibile di nuovo, aggiornamento dati...');
+            updateRealtimeStats();
+            updateLogs();
+            loadStatsHistory();
+        }
+    });
 });

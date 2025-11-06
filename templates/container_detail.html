@@ -47,7 +47,13 @@
 
         <!-- Statistiche in Tempo Reale -->
         <div class="stats-realtime">
-            <h2>📈 Statistiche in Tempo Reale</h2>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="margin: 0;">📈 Statistiche in Tempo Reale</h2>
+                <div id="sync-indicator" class="sync-indicator">
+                    <span class="pulse-dot"></span>
+                    <span id="last-update">Caricamento...</span>
+                </div>
+            </div>
             <div class="stats-grid">
                 <div class="stat-card-detail">
                     <h3>CPU</h3>
