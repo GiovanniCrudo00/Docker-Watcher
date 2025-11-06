@@ -1,8 +1,7 @@
 ## TODO
 ------------------------------------
 ### Minor Features
-1. Inserire nelle info generiche dei container attivi e delle immagini la data di quando sono stati avviati/riavviati e scaricati
-2. Inserire tag per l'hearthbeat dei container ed eventualmente notificare se i container sono passati da "healthy" ad "unhealthy"
+1. Aggiustare orario del dettaglio di container, per ora riporta orario Z
 ------------------------------------
 ### Main Features
 ##### 1. Monitoraggio dettagliato dei container

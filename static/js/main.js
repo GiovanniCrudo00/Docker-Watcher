@@ -1,4 +1,12 @@
+/**
+ * Docker Watcher - Main JavaScript
+ * Gestisce la navigazione tra le sezioni e l'aggiornamento automatico dei dati
+ */
+
+// Variabile globale per tenere traccia della sezione attiva
 let currentSection = 'images';
+// Traccia gli stati di salute precedenti
+let previousHealthStates = {};
 
 function showSection(sectionId) {
     // Aggiorna la sezione corrente
@@ -103,7 +111,7 @@ async function updateImages() {
                 <div class="container-item">
                     <div class="container-info">
                         <h4>${image.name}</h4>
-                        <p>ID: ${image.id} • Dimensione: ${image.size} MB • Creata: ${image.created}</p>
+                        <p>ID: ${image.id} • Dimensione: ${image.size} MB • Scaricata: ${image.created}</p>
                     </div>
                     <span class="status ${statusClass}">${statusText}</span>
                 </div>
@@ -140,13 +148,41 @@ async function updateRunningContainers() {
         let html = '<h2 class="section-title">🟢 Container Attivi</h2>';
         
         containers.forEach(cont => {
+            let healthBadge = '';
+            if (cont.health_status !== 'none') {
+                let emoji = '🟡';
+                let text = 'Starting';
+                let healthClass = 'starting';
+                
+                if (cont.health_status === 'healthy') {
+                    emoji = '💚';
+                    text = 'Healthy';
+                    healthClass = 'healthy';
+                } else if (cont.health_status === 'unhealthy') {
+                    emoji = '❤️';
+                    text = 'Unhealthy';
+                    healthClass = 'unhealthy';
+                    
+                    // Notifica se unhealthy
+                    showNotification(`⚠️ Container ${cont.name} è diventato UNHEALTHY!`);
+                }
+                
+                healthBadge = `<span class="health-badge ${healthClass}">${emoji} ${text}</span>`;
+            }
+            
             html += `
-                <div class="container-item">
+                <div class="container-item clickable" onclick="window.location.href='/container/${cont.id}'">
                     <div class="container-info">
                         <h4>${cont.name}</h4>
                         <p>Immagine: ${cont.image} • ID: ${cont.id} • Porta: ${cont.ports}</p>
+                        <p style="font-size: 0.85em; color: #64748b; margin-top: 4px;">
+                            ⏰ Avviato: ${cont.started_at}
+                        </p>
                     </div>
-                    <span class="status running">RUNNING</span>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        ${healthBadge}
+                        <span class="status running">RUNNING</span>
+                    </div>
                 </div>
             `;
         });
@@ -186,6 +222,9 @@ async function updateStoppedContainers() {
                     <div class="container-info">
                         <h4>${cont.name}</h4>
                         <p>Immagine: ${cont.image} • ID: ${cont.id} • Porta: ${cont.ports}</p>
+                        <p style="font-size: 0.85em; color: #64748b; margin-top: 4px;">
+                            ⏰ Ultimo avvio: ${cont.started_at}
+                        </p>
                     </div>
                     <span class="status stopped">STOPPED</span>
                 </div>
@@ -244,6 +283,83 @@ function updateLastRefreshTime() {
     
     timeElement.textContent = `⏱️ Aggiornato: ${timeString}`;
 }
+
+/**
+ * Mostra una notifica toast
+ */
+function showNotification(message) {
+    // Verifica se la notifica è già stata mostrata recentemente
+    const notifKey = `notif_${message}`;
+    const lastShown = sessionStorage.getItem(notifKey);
+    const now = Date.now();
+    
+    // Non mostrare la stessa notifica più di una volta ogni 5 minuti
+    if (lastShown && (now - parseInt(lastShown)) < 300000) {
+        return;
+    }
+    
+    sessionStorage.setItem(notifKey, now.toString());
+    
+    // Crea l'elemento notifica
+    const notification = document.createElement('div');
+    notification.className = 'notification-toast';
+    notification.textContent = message;
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: rgba(239, 68, 68, 0.95);
+        color: white;
+        padding: 16px 24px;
+        border-radius: 12px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+        z-index: 9999;
+        font-weight: 600;
+        animation: slideIn 0.3s ease-out;
+        border: 2px solid #ef4444;
+    `;
+    
+    // Aggiungi al body
+    document.body.appendChild(notification);
+    
+    // Rimuovi dopo 5 secondi
+    setTimeout(() => {
+        notification.style.animation = 'slideOut 0.3s ease-in';
+        setTimeout(() => {
+            document.body.removeChild(notification);
+        }, 300);
+    }, 5000);
+    
+    console.warn('🚨 NOTIFICA:', message);
+}
+
+// Aggiungi gli stili per le animazioni
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes slideIn {
+        from {
+            transform: translateX(400px);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    
+    @keyframes slideOut {
+        from {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        to {
+            transform: translateX(400px);
+            opacity: 0;
+        }
+    }
+`;
+document.head.appendChild(style);
+
 
 // Inizializzazione quando il DOM è caricato
 document.addEventListener('DOMContentLoaded', function() {

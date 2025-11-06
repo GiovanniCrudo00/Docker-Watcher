@@ -1,23 +1,11 @@
-# Copyright (C) 2025  Il Tuo Nome
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
-
 from flask import Flask, render_template, jsonify
 import docker
 from docker.errors import DockerException
 import psutil
+from collections import deque
+from datetime import datetime, timedelta
+import threading
+import time
 
 app = Flask(__name__)
 
@@ -27,6 +15,11 @@ try:
 except DockerException as e:
     print(f"Errore connessione Docker: {e}")
     client = None
+
+# Dizionario per memorizzare lo storico delle statistiche (ultimi 7 giorni)
+container_stats_history = {}
+# Lock per thread-safe access
+stats_lock = threading.Lock()
 
 
 def get_docker_stats():
@@ -88,11 +81,18 @@ def get_images_data():
             # Verifica se l'immagine è in uso
             in_use = img.id in used_images
             
+            # Data di creazione dell'immagine
+            created_date = img.attrs['Created']
+            # Converti in formato leggibile
+            from datetime import datetime
+            created_dt = datetime.fromisoformat(created_date.replace('Z', '+00:00'))
+            created_str = created_dt.strftime('%d/%m/%Y %H:%M')
+            
             images_data.append({
                 'name': tags,
                 'id': img.short_id.replace('sha256:', ''),
                 'size': size_mb,
-                'created': img.attrs['Created'][:10],  # Solo la data
+                'created': created_str,
                 'in_use': in_use
             })
         
@@ -111,6 +111,8 @@ def get_containers_data(running_only=True):
         containers = client.containers.list(all=not running_only)
         containers_data = []
         
+        from datetime import datetime
+        
         for container in containers:
             # Ottieni informazioni sulle porte
             ports = container.attrs['NetworkSettings']['Ports']
@@ -128,12 +130,33 @@ def get_containers_data(running_only=True):
             # Ottieni nome dell'immagine
             image_name = container.image.tags[0] if container.image.tags else 'unknown'
             
+            # Ottieni data di avvio/riavvio
+            started_at = container.attrs['State']['StartedAt']
+            started_dt = datetime.fromisoformat(started_at.replace('Z', '+00:00'))
+            started_str = started_dt.strftime('%d/%m/%Y %H:%M')
+            
+            # Ottieni health status
+            health_status = 'none'
+            health_class = 'none'
+            
+            if 'Health' in container.attrs['State']:
+                health_status = container.attrs['State']['Health']['Status']
+                if health_status == 'healthy':
+                    health_class = 'healthy'
+                elif health_status == 'unhealthy':
+                    health_class = 'unhealthy'
+                else:
+                    health_class = 'starting'
+            
             containers_data.append({
                 'name': container.name,
                 'image': image_name,
                 'id': container.short_id,
                 'status': container.status,
-                'ports': ports_str
+                'ports': ports_str,
+                'started_at': started_str,
+                'health_status': health_status,
+                'health_class': health_class
             })
         
         return containers_data
@@ -186,6 +209,26 @@ def api_images():
     return jsonify(images)
 
 
+@app.route('/container/<container_id>')
+def container_detail(container_id):
+    if not client:
+        return "Docker non disponibile", 503
+
+    try:
+        container = client.containers.get(container_id)
+        info = {
+            'id': container.short_id,
+            'name': container.name,
+            'image': container.image.tags[0] if container.image.tags else 'unknown',
+            'status': container.status,
+            'created': container.attrs['Created'][:19].replace('T', ' ')
+        }
+        return render_template('container_detail.html', container=info)
+    except Exception as e:
+        print(f"Errore caricamento container {container_id}: {e}")
+        return f"Errore: impossibile trovare il container {container_id}", 404
+
+
 @app.route('/api/containers/<status>')
 def api_containers(status):
     """API endpoint per ottenere container (running/stopped)"""
@@ -196,6 +239,133 @@ def api_containers(status):
         containers = [c for c in containers if c['status'] != 'running']
     
     return jsonify(containers)
+
+
+@app.route('/api/container/<container_id>/stats')
+def container_stats(container_id):
+    if not client:
+        return jsonify({'error': 'Docker non disponibile'}), 503
+
+    try:
+        container = client.containers.get(container_id)
+        stats = container.stats(stream=False)
+        
+        # Calcola CPU usage
+        cpu_delta = stats["cpu_stats"]["cpu_usage"]["total_usage"] - stats["precpu_stats"]["cpu_usage"]["total_usage"]
+        system_delta = stats["cpu_stats"]["system_cpu_usage"] - stats["precpu_stats"]["system_cpu_usage"]
+        cpu_percent = 0.0
+        if system_delta > 0.0 and cpu_delta > 0.0:
+            cpu_percent = (cpu_delta / system_delta) * len(stats["cpu_stats"]["cpu_usage"]["percpu_usage"]) * 100.0
+        
+        # Calcola RAM usage
+        mem_usage = stats["memory_stats"]["usage"]
+        mem_limit = stats["memory_stats"]["limit"]
+        mem_percent = (mem_usage / mem_limit) * 100.0
+
+        # Converti in MB
+        mem_usage_mb = mem_usage / (1024 * 1024)
+        mem_limit_mb = mem_limit / (1024 * 1024)
+
+        # Network
+        net_input = 0
+        net_output = 0
+        if "networks" in stats:
+            for iface, data in stats["networks"].items():
+                net_input += data.get("rx_bytes", 0)
+                net_output += data.get("tx_bytes", 0)
+
+        # Disk I/O
+        blkio_stats = stats.get("blkio_stats", {}).get("io_service_bytes_recursive", [])
+        disk_read = disk_write = 0
+        for entry in blkio_stats:
+            if entry["op"].lower() == "read":
+                disk_read += entry["value"]
+            elif entry["op"].lower() == "write":
+                disk_write += entry["value"]
+
+        return jsonify({
+            "cpu_percent": round(cpu_percent, 2),
+            "mem_usage_mb": round(mem_usage_mb, 2),
+            "mem_limit_mb": round(mem_limit_mb, 2),
+            "mem_percent": round(mem_percent, 2),
+            "net_input_mb": round(net_input / (1024 * 1024), 2),
+            "net_output_mb": round(net_output / (1024 * 1024), 2),
+            "disk_read_mb": round(disk_read / (1024 * 1024), 2),
+            "disk_write_mb": round(disk_write / (1024 * 1024), 2),
+        })
+    except Exception as e:
+        print(f"Errore stats container {container_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/container/<container_id>/stats/history')
+def container_stats_history_api(container_id):
+    with stats_lock:
+        history = list(container_stats_history.get(container_id, []))
+    return jsonify(history)
+
+
+@app.route('/api/container/<container_id>/logs')
+def container_logs(container_id):
+    if not client:
+        return jsonify({'error': 'Docker non disponibile'}), 503
+
+    try:
+        container = client.containers.get(container_id)
+        logs = container.logs(tail=10).decode('utf-8').splitlines()
+        return jsonify({'logs': logs})
+    except Exception as e:
+        print(f"Errore logs container {container_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+def collect_container_stats():
+    while True:
+        if client:
+            try:
+                for container in client.containers.list():
+                    stats = container.stats(stream=False)
+                    cpu_delta = stats["cpu_stats"]["cpu_usage"]["total_usage"] - stats["precpu_stats"]["cpu_usage"]["total_usage"]
+                    system_delta = stats["cpu_stats"]["system_cpu_usage"] - stats["precpu_stats"]["system_cpu_usage"]
+                    cpu_percent = (cpu_delta / system_delta) * len(stats["cpu_stats"]["cpu_usage"]["percpu_usage"]) * 100.0 if system_delta > 0.0 else 0.0
+
+                    mem_usage = stats["memory_stats"]["usage"]
+                    mem_usage_mb = mem_usage / (1024 * 1024)
+                    mem_percent = (mem_usage / stats["memory_stats"]["limit"]) * 100.0
+
+                    net_input = net_output = 0
+                    if "networks" in stats:
+                        for iface, data in stats["networks"].items():
+                            net_input += data.get("rx_bytes", 0)
+                            net_output += data.get("tx_bytes", 0)
+
+                    disk_read = disk_write = 0
+                    for entry in stats.get("blkio_stats", {}).get("io_service_bytes_recursive", []):
+                        if entry["op"].lower() == "read":
+                            disk_read += entry["value"]
+                        elif entry["op"].lower() == "write":
+                            disk_write += entry["value"]
+
+                    data_point = {
+                        "timestamp": datetime.utcnow().isoformat(),
+                        "cpu_percent": round(cpu_percent, 2),
+                        "mem_usage_mb": round(mem_usage_mb, 2),
+                        "mem_percent": round(mem_percent, 2),
+                        "net_input_mb": round(net_input / (1024 * 1024), 2),
+                        "net_output_mb": round(net_output / (1024 * 1024), 2),
+                        "disk_read_mb": round(disk_read / (1024 * 1024), 2),
+                        "disk_write_mb": round(disk_write / (1024 * 1024), 2),
+                    }
+
+                    with stats_lock:
+                        container_stats_history.setdefault(container.short_id, deque(maxlen=10080)).append(data_point)
+            except Exception as e:
+                print(f"Errore raccolta statistiche: {e}")
+        time.sleep(60)
+
+# Avvio del thread
+threading.Thread(target=collect_container_stats, daemon=True).start()
+
 
 
 if __name__ == '__main__':

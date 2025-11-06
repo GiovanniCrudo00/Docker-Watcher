@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ container.name }} - Docker Watcher</title>
+    <link rel="icon" type="image/png" href="https://www.docker.com/wp-content/uploads/2022/03/Moby-logo.png">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/container_detail.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="back-button" onclick="window.location.href='/'">
+            ← Torna alla Dashboard
+        </div>
+
+        <header>
+            <div class="header-content">
+                <img src="https://www.docker.com/wp-content/uploads/2022/03/Moby-logo.png" alt="Docker Logo" class="docker-logo">
+                <div class="header-text">
+                    <h1>{{ container.name }}</h1>
+                    <p class="subtitle">Monitoraggio Container</p>
+                </div>
+            </div>
+        </header>
+
+        <!-- Info Container -->
+        <div class="info-section">
+            <div class="info-card">
+                <h3>📦 Immagine</h3>
+                <p>{{ container.image }}</p>
+            </div>
+            <div class="info-card">
+                <h3>🆔 ID</h3>
+                <p>{{ container.id }}</p>
+            </div>
+            <div class="info-card">
+                <h3>📊 Status</h3>
+                <p><span class="status running">{{ container.status }}</span></p>
+            </div>
+            <div class="info-card">
+                <h3>📅 Creato</h3>
+                <p>{{ container.created }}</p>
+            </div>
+        </div>
+
+        <!-- Statistiche in Tempo Reale -->
+        <div class="stats-realtime">
+            <h2>📈 Statistiche in Tempo Reale</h2>
+            <div class="stats-grid">
+                <div class="stat-card-detail">
+                    <h3>CPU</h3>
+                    <div class="stat-value-detail" id="cpu-value">0%</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="cpu-progress"></div>
+                    </div>
+                </div>
+                <div class="stat-card-detail">
+                    <h3>RAM</h3>
+                    <div class="stat-value-detail" id="ram-value">0 MB</div>
+                    <p class="stat-detail" id="ram-percent">0%</p>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="ram-progress"></div>
+                    </div>
+                </div>
+                <div class="stat-card-detail">
+                    <h3>Network IN</h3>
+                    <div class="stat-value-detail" id="net-in-value">0 MB</div>
+                </div>
+                <div class="stat-card-detail">
+                    <h3>Network OUT</h3>
+                    <div class="stat-value-detail" id="net-out-value">0 MB</div>
+                </div>
+                <div class="stat-card-detail">
+                    <h3>Disk READ</h3>
+                    <div class="stat-value-detail" id="disk-read-value">0 MB</div>
+                </div>
+                <div class="stat-card-detail">
+                    <h3>Disk WRITE</h3>
+                    <div class="stat-value-detail" id="disk-write-value">0 MB</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Grafici Storici -->
+        <div class="charts-section">
+            <h2>📊 Storico Ultimi 7 Giorni</h2>
+            
+            <div class="chart-container">
+                <h3>CPU Usage (%)</h3>
+                <canvas id="cpuChart"></canvas>
+            </div>
+
+            <div class="chart-container">
+                <h3>Memory Usage (MB)</h3>
+                <canvas id="memoryChart"></canvas>
+            </div>
+
+            <div class="chart-container">
+                <h3>Network I/O (MB)</h3>
+                <canvas id="networkChart"></canvas>
+            </div>
+
+            <div class="chart-container">
+                <h3>Disk I/O (MB)</h3>
+                <canvas id="diskChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Log Container -->
+        <div class="logs-section">
+            <h2>📄 Log in Tempo Reale (Ultimi 10)</h2>
+            <div class="logs-container" id="logs-container">
+                <p style="color: #94a3b8;">Caricamento log...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const containerId = '{{ container.id }}';
+    </script>
+    <script src="{{ url_for('static', filename='js/container_detail.js') }}"></script>
+</body>
+</html>

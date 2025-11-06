@@ -37,11 +37,11 @@
                 <div class="stat-value">{{ stats.stopped_containers }}</div>
             </div>
             <div class="stat-card">
-                <h3>Consumo CPU dell'host</h3>
+                <h3>Consumo CPU</h3>
                 <div class="stat-value">{{ stats.cpu_usage }}%</div>
             </div>
             <div class="stat-card">
-                <h3>Consumo RAM dell'host</h3>
+                <h3>Consumo RAM</h3>
                 <div class="stat-value">{{ stats.ram_usage }}%</div>
                 <p class="stat-detail">{{ stats.ram_used_gb }} GB / {{ stats.ram_total_gb }} GB</p>
             </div>
@@ -62,7 +62,7 @@
                     <div class="container-item">
                         <div class="container-info">
                             <h4>{{ image.name }}</h4>
-                            <p>ID: {{ image.id }} • Dimensione: {{ image.size }} MB • Creata: {{ image.created }}</p>
+                            <p>ID: {{ image.id }} • Dimensione: {{ image.size }} MB • Scaricata: {{ image.created }}</p>
                         </div>
                         <span class="status {% if image.in_use %}running{% else %}stopped{% endif %}">
                             {% if image.in_use %}IN USO{% else %}NON UTILIZZATA{% endif %}
@@ -83,12 +83,25 @@
                 
                 {% if running_containers %}
                     {% for container in running_containers %}
-                    <div class="container-item">
+                    <div class="container-item clickable" onclick="window.location.href='/container/{{ container.id }}'">
                         <div class="container-info">
                             <h4>{{ container.name }}</h4>
                             <p>Immagine: {{ container.image }} • ID: {{ container.id }} • Porta: {{ container.ports }}</p>
+                            <p style="font-size: 0.85em; color: #64748b; margin-top: 4px;">
+                                ⏰ Avviato: {{ container.started_at }}
+                            </p>
                         </div>
-                        <span class="status running">RUNNING</span>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            {% if container.health_status != 'none' %}
+                            <span class="health-badge {{ container.health_class }}">
+                                {% if container.health_status == 'healthy' %}💚 Healthy
+                                {% elif container.health_status == 'unhealthy' %}❤️ Unhealthy
+                                {% else %}🟡 Starting
+                                {% endif %}
+                            </span>
+                            {% endif %}
+                            <span class="status running">RUNNING</span>
+                        </div>
                     </div>
                     {% endfor %}
                 {% else %}
@@ -109,6 +122,9 @@
                         <div class="container-info">
                             <h4>{{ container.name }}</h4>
                             <p>Immagine: {{ container.image }} • ID: {{ container.id }} • Porta: {{ container.ports }}</p>
+                            <p style="font-size: 0.85em; color: #64748b; margin-top: 4px;">
+                                ⏰ Ultimo avvio: {{ container.started_at }}
+                            </p>
                         </div>
                         <span class="status stopped">STOPPED</span>
                     </div>
