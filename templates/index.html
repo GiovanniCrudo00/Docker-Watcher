@@ -55,85 +55,100 @@
 
         <div id="images" class="section-content active">
             <div class="containers-section">
-                <h2 class="section-title">📦 Immagini Docker</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 class="section-title">📦 Immagini Docker</h2>
+                    <input type="text" id="search-images" class="search-box" placeholder="🔍 Cerca immagine...">
+                </div>
                 
-                {% if images %}
-                    {% for image in images %}
-                    <div class="container-item">
-                        <div class="container-info">
-                            <h4>{{ image.name }}</h4>
-                            <p>ID: {{ image.id }} • Dimensione: {{ image.size }} MB • Scaricata: {{ image.created }}</p>
+                <div id="images-list">
+                    {% if images %}
+                        {% for image in images %}
+                        <div class="container-item" data-name="{{ image.name|lower }}">
+                            <div class="container-info">
+                                <h4>{{ image.name }}</h4>
+                                <p>ID: {{ image.id }} • Dimensione: {{ image.size }} MB • Scaricata: {{ image.created }}</p>
+                            </div>
+                            <span class="status {% if image.in_use %}running{% else %}stopped{% endif %}">
+                                {% if image.in_use %}IN USO{% else %}NON UTILIZZATA{% endif %}
+                            </span>
                         </div>
-                        <span class="status {% if image.in_use %}running{% else %}stopped{% endif %}">
-                            {% if image.in_use %}IN USO{% else %}NON UTILIZZATA{% endif %}
-                        </span>
-                    </div>
-                    {% endfor %}
-                {% else %}
-                    <p style="text-align: center; color: #94a3b8; padding: 20px;">
-                        Nessuna immagine Docker trovata
-                    </p>
-                {% endif %}
+                        {% endfor %}
+                    {% else %}
+                        <p style="text-align: center; color: #94a3b8; padding: 20px;">
+                            Nessuna immagine Docker trovata
+                        </p>
+                    {% endif %}
+                </div>
             </div>
         </div>
 
         <div id="active" class="section-content">
             <div class="containers-section">
-                <h2 class="section-title">🟢 Container Attivi</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 class="section-title">🟢 Container Attivi</h2>
+                    <input type="text" id="search-active" class="search-box" placeholder="🔍 Cerca container...">
+                </div>
                 
-                {% if running_containers %}
-                    {% for container in running_containers %}
-                    <div class="container-item clickable" onclick="window.location.href='/container/{{ container.id }}'">
-                        <div class="container-info">
-                            <h4>{{ container.name }}</h4>
-                            <p>Immagine: {{ container.image }} • ID: {{ container.id }} • Porta: {{ container.ports }}</p>
-                            <p style="font-size: 0.85em; color: #64748b; margin-top: 4px;">
-                                ⏰ Avviato: {{ container.started_at }}
-                            </p>
-                        </div>
-                        <div style="display: flex; gap: 8px; align-items: center;">
-                            {% if container.health_status != 'none' %}
-                            <span class="health-badge {{ container.health_class }}">
-                                {% if container.health_status == 'healthy' %}💚 Healthy
-                                {% elif container.health_status == 'unhealthy' %}❤️ Unhealthy
-                                {% else %}🟡 Starting
+                <div id="active-list">
+                    {% if running_containers %}
+                        {% for container in running_containers %}
+                        <div class="container-item clickable" onclick="window.location.href='/container/{{ container.id }}'" data-name="{{ container.name|lower }}">
+                            <div class="container-info">
+                                <h4>{{ container.name }}</h4>
+                                <p>Immagine: {{ container.image }} • ID: {{ container.id }} • Porta: {{ container.ports }}</p>
+                                <p style="font-size: 0.85em; color: #64748b; margin-top: 4px;">
+                                    ⏰ Avviato: {{ container.started_at }}
+                                </p>
+                            </div>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                {% if container.health_status != 'none' %}
+                                <span class="health-badge {{ container.health_class }}">
+                                    {% if container.health_status == 'healthy' %}💚 Healthy
+                                    {% elif container.health_status == 'unhealthy' %}❤️ Unhealthy
+                                    {% else %}🟡 Starting
+                                    {% endif %}
+                                </span>
                                 {% endif %}
-                            </span>
-                            {% endif %}
-                            <span class="status running">RUNNING</span>
+                                <span class="status running">RUNNING</span>
+                            </div>
                         </div>
-                    </div>
-                    {% endfor %}
-                {% else %}
-                    <p style="text-align: center; color: #94a3b8; padding: 20px;">
-                        Nessun container in esecuzione
-                    </p>
-                {% endif %}
+                        {% endfor %}
+                    {% else %}
+                        <p style="text-align: center; color: #94a3b8; padding: 20px;">
+                            Nessun container in esecuzione
+                        </p>
+                    {% endif %}
+                </div>
             </div>
         </div>
 
         <div id="inactive" class="section-content">
             <div class="containers-section">
-                <h2 class="section-title">🔴 Container Non Attivi</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 class="section-title">🔴 Container Non Attivi</h2>
+                    <input type="text" id="search-inactive" class="search-box" placeholder="🔍 Cerca container...">
+                </div>
                 
-                {% if stopped_containers %}
-                    {% for container in stopped_containers %}
-                    <div class="container-item">
-                        <div class="container-info">
-                            <h4>{{ container.name }}</h4>
-                            <p>Immagine: {{ container.image }} • ID: {{ container.id }} • Porta: {{ container.ports }}</p>
-                            <p style="font-size: 0.85em; color: #64748b; margin-top: 4px;">
-                                ⏰ Ultimo avvio: {{ container.started_at }}
-                            </p>
+                <div id="inactive-list">
+                    {% if stopped_containers %}
+                        {% for container in stopped_containers %}
+                        <div class="container-item" data-name="{{ container.name|lower }}">
+                            <div class="container-info">
+                                <h4>{{ container.name }}</h4>
+                                <p>Immagine: {{ container.image }} • ID: {{ container.id }} • Porta: {{ container.ports }}</p>
+                                <p style="font-size: 0.85em; color: #64748b; margin-top: 4px;">
+                                    ⏰ Ultimo avvio: {{ container.started_at }}
+                                </p>
+                            </div>
+                            <span class="status stopped">STOPPED</span>
                         </div>
-                        <span class="status stopped">STOPPED</span>
-                    </div>
-                    {% endfor %}
-                {% else %}
-                    <p style="text-align: center; color: #94a3b8; padding: 20px;">
-                        Nessun container fermato
-                    </p>
-                {% endif %}
+                        {% endfor %}
+                    {% else %}
+                        <p style="text-align: center; color: #94a3b8; padding: 20px;">
+                            Nessun container fermato
+                        </p>
+                    {% endif %}
+                </div>
             </div>
         </div>
 

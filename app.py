@@ -20,6 +20,10 @@ except DockerException as e:
 # Path del database
 DB_PATH = os.path.join(os.path.dirname(__file__), 'docker_stats.db')
 
+# Dizionario per memorizzare gli ultimi valori cumulativi di ogni container
+# Formato: {container_id: {'timestamp': datetime, 'net_in': bytes, 'net_out': bytes, 'disk_read': bytes, 'disk_write': bytes}}
+last_cumulative_values = {}
+
 
 # ===== FUNZIONI DATABASE =====
 
@@ -38,10 +42,10 @@ def init_database():
             mem_usage_mb REAL,
             mem_limit_mb REAL,
             mem_percent REAL,
-            net_input_mb REAL,
-            net_output_mb REAL,
-            disk_read_mb REAL,
-            disk_write_mb REAL,
+            net_input_mb REAL,     -- MB/s rate
+            net_output_mb REAL,    -- MB/s rate
+            disk_read_mb REAL,     -- MB/s rate
+            disk_write_mb REAL,    -- MB/s rate
             UNIQUE(container_id, timestamp)
         )
     ''')
@@ -158,6 +162,90 @@ def cleanup_old_stats():
 init_database()
 
 
+def calculate_rate(container_id, current_cumulative_values, current_timestamp):
+    """
+    Calcola i rate (MB/s) per Network e Disk I/O confrontando con i valori precedenti.
+    
+    Args:
+        container_id: ID del container
+        current_cumulative_values: Dict con valori attuali cumulativi in bytes
+                                   {'net_in': bytes, 'net_out': bytes, 'disk_read': bytes, 'disk_write': bytes}
+        current_timestamp: Timestamp corrente (datetime)
+    
+    Returns:
+        Dict con i rate in MB/s: {'net_input_mb_s': float, 'net_output_mb_s': float, 
+                                   'disk_read_mb_s': float, 'disk_write_mb_s': float}
+    """
+    global last_cumulative_values
+    
+    # Se non abbiamo valori precedenti per questo container, salviamo questi e ritorniamo 0
+    if container_id not in last_cumulative_values:
+        last_cumulative_values[container_id] = {
+            'timestamp': current_timestamp,
+            'net_in': current_cumulative_values['net_in'],
+            'net_out': current_cumulative_values['net_out'],
+            'disk_read': current_cumulative_values['disk_read'],
+            'disk_write': current_cumulative_values['disk_write']
+        }
+        return {
+            'net_input_mb_s': 0.0,
+            'net_output_mb_s': 0.0,
+            'disk_read_mb_s': 0.0,
+            'disk_write_mb_s': 0.0
+        }
+    
+    # Recupera i valori precedenti
+    last_values = last_cumulative_values[container_id]
+    
+    # Calcola il tempo trascorso in secondi
+    time_delta = (current_timestamp - last_values['timestamp']).total_seconds()
+    
+    # Se il tempo trascorso è troppo piccolo, ritorna 0 per evitare divisioni per numeri molto piccoli
+    if time_delta < 0.1:
+        return {
+            'net_input_mb_s': 0.0,
+            'net_output_mb_s': 0.0,
+            'disk_read_mb_s': 0.0,
+            'disk_write_mb_s': 0.0
+        }
+    
+    # Calcola le differenze in bytes
+    net_in_diff = current_cumulative_values['net_in'] - last_values['net_in']
+    net_out_diff = current_cumulative_values['net_out'] - last_values['net_out']
+    disk_read_diff = current_cumulative_values['disk_read'] - last_values['disk_read']
+    disk_write_diff = current_cumulative_values['disk_write'] - last_values['disk_write']
+    
+    # Gestione del caso in cui i valori cumulativi si azzerano (restart del container)
+    # In questo caso, usiamo direttamente i valori attuali come differenza
+    if net_in_diff < 0:
+        net_in_diff = current_cumulative_values['net_in']
+    if net_out_diff < 0:
+        net_out_diff = current_cumulative_values['net_out']
+    if disk_read_diff < 0:
+        disk_read_diff = current_cumulative_values['disk_read']
+    if disk_write_diff < 0:
+        disk_write_diff = current_cumulative_values['disk_write']
+    
+    # Calcola i rate in MB/s
+    rates = {
+        'net_input_mb_s': (net_in_diff / (1024 * 1024)) / time_delta,
+        'net_output_mb_s': (net_out_diff / (1024 * 1024)) / time_delta,
+        'disk_read_mb_s': (disk_read_diff / (1024 * 1024)) / time_delta,
+        'disk_write_mb_s': (disk_write_diff / (1024 * 1024)) / time_delta
+    }
+    
+    # Aggiorna i valori precedenti con quelli attuali
+    last_cumulative_values[container_id] = {
+        'timestamp': current_timestamp,
+        'net_in': current_cumulative_values['net_in'],
+        'net_out': current_cumulative_values['net_out'],
+        'disk_read': current_cumulative_values['disk_read'],
+        'disk_write': current_cumulative_values['disk_write']
+    }
+    
+    return rates
+
+
 def get_docker_stats():
     """Raccoglie statistiche generali su Docker"""
     if not client:
@@ -247,8 +335,6 @@ def get_containers_data(running_only=True):
         containers = client.containers.list(all=not running_only)
         containers_data = []
         
-        from datetime import datetime
-        
         for container in containers:
             # Ottieni informazioni sulle porte
             ports = container.attrs['NetworkSettings']['Ports']
@@ -261,15 +347,21 @@ def get_containers_data(running_only=True):
                             host_port = mapping.get('HostPort', '')
                             port_mappings.append(f"{host_port}:{container_port}")
             
-            ports_str = ', '.join(port_mappings) if port_mappings else 'Nessuna porta mappata'
+            # Se non ci sono porte mappate, mostra N/A invece di un messaggio lungo
+            ports_str = ', '.join(port_mappings) if port_mappings else 'N/A'
             
             # Ottieni nome dell'immagine
             image_name = container.image.tags[0] if container.image.tags else 'unknown'
             
-            # Ottieni data di avvio/riavvio
+            # Ottieni data di avvio/riavvio in ORARIO LOCALE
             started_at = container.attrs['State']['StartedAt']
-            started_dt = datetime.fromisoformat(started_at.replace('Z', '+00:00'))
-            started_str = started_dt.strftime('%d/%m/%Y %H:%M')
+            # Converti in datetime UTC
+            started_dt_utc = datetime.fromisoformat(started_at.replace('Z', '+00:00'))
+            # Converti in orario locale
+            import time
+            local_offset = time.timezone if not time.daylight else time.altzone
+            local_started = started_dt_utc - timedelta(seconds=local_offset)
+            started_str = local_started.strftime('%d/%m/%Y %H:%M')
             
             # Ottieni health status
             health_status = 'none'
@@ -299,7 +391,6 @@ def get_containers_data(running_only=True):
     except Exception as e:
         print(f"Errore nel recupero container: {e}")
         return []
-
 
 @app.route('/')
 def home():
@@ -412,37 +503,47 @@ def api_container_stats(container_id):
         mem_usage_mb = mem_usage / (1024 * 1024)
         mem_limit_mb = mem_limit / (1024 * 1024)
         
-        # Calcola Network I/O
+        # Calcola Network I/O - valori cumulativi in bytes
         networks = stats.get('networks', {})
-        net_input = 0
-        net_output = 0
+        net_input_cumulative = 0
+        net_output_cumulative = 0
         try:
-            net_input = sum(net.get('rx_bytes', 0) for net in networks.values()) / (1024 * 1024)
-            net_output = sum(net.get('tx_bytes', 0) for net in networks.values()) / (1024 * 1024)
+            net_input_cumulative = sum(net.get('rx_bytes', 0) for net in networks.values())
+            net_output_cumulative = sum(net.get('tx_bytes', 0) for net in networks.values())
         except (KeyError, TypeError, AttributeError):
             pass
         
-        # Calcola Disk I/O
+        # Calcola Disk I/O - valori cumulativi in bytes
         blkio_stats = stats.get('blkio_stats', {})
         io_service_bytes = blkio_stats.get('io_service_bytes_recursive', [])
-        disk_read = 0
-        disk_write = 0
+        disk_read_cumulative = 0
+        disk_write_cumulative = 0
         try:
-            disk_read = sum(item['value'] for item in io_service_bytes if item.get('op') == 'Read') / (1024 * 1024)
-            disk_write = sum(item['value'] for item in io_service_bytes if item.get('op') == 'Write') / (1024 * 1024)
+            disk_read_cumulative = sum(item['value'] for item in io_service_bytes if item.get('op') == 'Read')
+            disk_write_cumulative = sum(item['value'] for item in io_service_bytes if item.get('op') == 'Write')
         except (KeyError, TypeError):
             pass
         
+        # Calcola i rate usando i valori cumulativi
+        current_time = datetime.now()
+        cumulative_values = {
+            'net_in': net_input_cumulative,
+            'net_out': net_output_cumulative,
+            'disk_read': disk_read_cumulative,
+            'disk_write': disk_write_cumulative
+        }
+        rates = calculate_rate(container_id, cumulative_values, current_time)
+        
         current_stats = {
-            'timestamp': datetime.now().isoformat(),
+            'timestamp': current_time.isoformat(),
             'cpu_percent': round(cpu_percent, 2),
             'mem_usage_mb': round(mem_usage_mb, 2),
             'mem_limit_mb': round(mem_limit_mb, 2),
             'mem_percent': round(mem_percent, 2),
-            'net_input_mb': round(net_input, 2),
-            'net_output_mb': round(net_output, 2),
-            'disk_read_mb': round(disk_read, 2),
-            'disk_write_mb': round(disk_write, 2)
+            'net_input_mb': round(rates['net_input_mb_s'], 2),
+            'net_output_mb': round(rates['net_output_mb_s'], 2),
+            'disk_read_mb': round(rates['disk_read_mb_s'], 2),
+            'disk_write_mb': round(rates['disk_write_mb_s'], 2)
         }
         
         # Salva nel database
@@ -520,42 +621,52 @@ def collect_stats_background():
                         mem_usage_mb = mem_usage / (1024 * 1024)
                         mem_limit_mb = mem_limit / (1024 * 1024)
                         
-                        # Calcola Network I/O
+                        # Calcola Network I/O - valori cumulativi in bytes
                         networks = stats.get('networks', {})
-                        net_input = 0
-                        net_output = 0
+                        net_input_cumulative = 0
+                        net_output_cumulative = 0
                         try:
-                            net_input = sum(net.get('rx_bytes', 0) for net in networks.values()) / (1024 * 1024)
-                            net_output = sum(net.get('tx_bytes', 0) for net in networks.values()) / (1024 * 1024)
+                            net_input_cumulative = sum(net.get('rx_bytes', 0) for net in networks.values())
+                            net_output_cumulative = sum(net.get('tx_bytes', 0) for net in networks.values())
                         except (KeyError, TypeError, AttributeError):
                             pass
                         
-                        # Calcola Disk I/O
+                        # Calcola Disk I/O - valori cumulativi in bytes
                         blkio_stats = stats.get('blkio_stats', {})
                         io_service_bytes = blkio_stats.get('io_service_bytes_recursive', [])
-                        disk_read = 0
-                        disk_write = 0
+                        disk_read_cumulative = 0
+                        disk_write_cumulative = 0
                         try:
-                            disk_read = sum(item['value'] for item in io_service_bytes if item.get('op') == 'Read') / (1024 * 1024)
-                            disk_write = sum(item['value'] for item in io_service_bytes if item.get('op') == 'Write') / (1024 * 1024)
+                            disk_read_cumulative = sum(item['value'] for item in io_service_bytes if item.get('op') == 'Read')
+                            disk_write_cumulative = sum(item['value'] for item in io_service_bytes if item.get('op') == 'Write')
                         except (KeyError, TypeError):
                             pass
                         
+                        # Calcola i rate usando i valori cumulativi
+                        current_time = datetime.now()
+                        cumulative_values = {
+                            'net_in': net_input_cumulative,
+                            'net_out': net_output_cumulative,
+                            'disk_read': disk_read_cumulative,
+                            'disk_write': disk_write_cumulative
+                        }
+                        rates = calculate_rate(container.id, cumulative_values, current_time)
+                        
                         current_stats = {
-                            'timestamp': datetime.now().isoformat(),
+                            'timestamp': current_time.isoformat(),
                             'cpu_percent': round(cpu_percent, 2),
                             'mem_usage_mb': round(mem_usage_mb, 2),
                             'mem_limit_mb': round(mem_limit_mb, 2),
                             'mem_percent': round(mem_percent, 2),
-                            'net_input_mb': round(net_input, 2),
-                            'net_output_mb': round(net_output, 2),
-                            'disk_read_mb': round(disk_read, 2),
-                            'disk_write_mb': round(disk_write, 2)
+                            'net_input_mb': round(rates['net_input_mb_s'], 2),
+                            'net_output_mb': round(rates['net_output_mb_s'], 2),
+                            'disk_read_mb': round(rates['disk_read_mb_s'], 2),
+                            'disk_write_mb': round(rates['disk_write_mb_s'], 2)
                         }
                         
                         # Salva nel database
                         save_container_stats(container.id, container.name, current_stats)
-                        print(f"  ✅ {container.name}: CPU={cpu_percent:.1f}% RAM={mem_percent:.1f}%")
+                        print(f"  ✅ {container.name}: CPU={cpu_percent:.1f}% RAM={mem_percent:.1f}% NET_IN={rates['net_input_mb_s']:.2f}MB/s")
                         
                     except Exception as e:
                         print(f"  ❌ Errore raccolta stats per {container.name}: {e}")

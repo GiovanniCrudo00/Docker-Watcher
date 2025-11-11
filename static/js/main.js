@@ -32,6 +32,30 @@ function showSection(sectionId) {
 }
 
 /**
+ * Funzione di ricerca generica
+ */
+function setupSearch(searchInputId, listId) {
+    const searchInput = document.getElementById(searchInputId);
+    const list = document.getElementById(listId);
+    
+    if (!searchInput || !list) return;
+    
+    searchInput.addEventListener('input', function() {
+        const searchTerm = this.value.toLowerCase().trim();
+        const items = list.querySelectorAll('.container-item');
+        
+        items.forEach(item => {
+            const name = item.getAttribute('data-name');
+            if (name && name.includes(searchTerm)) {
+                item.classList.remove('hidden');
+            } else {
+                item.classList.add('hidden');
+            }
+        });
+    });
+}
+
+/**
  * Aggiorna le statistiche in tempo reale
  */
 async function updateStats() {
@@ -89,11 +113,10 @@ async function updateImages() {
         const response = await fetch('/api/images');
         const images = await response.json();
         
-        const container = document.querySelector('#images .containers-section');
+        const list = document.getElementById('images-list');
         
         if (images.length === 0) {
-            container.innerHTML = `
-                <h2 class="section-title">📦 Immagini Docker</h2>
+            list.innerHTML = `
                 <p style="text-align: center; color: #94a3b8; padding: 20px;">
                     Nessuna immagine Docker trovata
                 </p>
@@ -101,14 +124,14 @@ async function updateImages() {
             return;
         }
         
-        let html = '<h2 class="section-title">📦 Immagini Docker</h2>';
+        let html = '';
         
         images.forEach(image => {
             const statusClass = image.in_use ? 'running' : 'stopped';
             const statusText = image.in_use ? 'IN USO' : 'NON UTILIZZATA';
             
             html += `
-                <div class="container-item">
+                <div class="container-item" data-name="${image.name.toLowerCase()}">
                     <div class="container-info">
                         <h4>${image.name}</h4>
                         <p>ID: ${image.id} • Dimensione: ${image.size} MB • Scaricata: ${image.created}</p>
@@ -118,7 +141,7 @@ async function updateImages() {
             `;
         });
         
-        container.innerHTML = html;
+        list.innerHTML = html;
         console.log('✅ Immagini aggiornate');
     } catch (error) {
         console.error('❌ Errore aggiornamento immagini:', error);
@@ -133,11 +156,10 @@ async function updateRunningContainers() {
         const response = await fetch('/api/containers/running');
         const containers = await response.json();
         
-        const container = document.querySelector('#active .containers-section');
+        const list = document.getElementById('active-list');
         
         if (containers.length === 0) {
-            container.innerHTML = `
-                <h2 class="section-title">🟢 Container Attivi</h2>
+            list.innerHTML = `
                 <p style="text-align: center; color: #94a3b8; padding: 20px;">
                     Nessun container in esecuzione
                 </p>
@@ -145,7 +167,7 @@ async function updateRunningContainers() {
             return;
         }
         
-        let html = '<h2 class="section-title">🟢 Container Attivi</h2>';
+        let html = '';
         
         containers.forEach(cont => {
             let healthBadge = '';
@@ -171,7 +193,7 @@ async function updateRunningContainers() {
             }
             
             html += `
-                <div class="container-item clickable" onclick="window.location.href='/container/${cont.id}'">
+                <div class="container-item clickable" onclick="window.location.href='/container/${cont.id}'" data-name="${cont.name.toLowerCase()}">
                     <div class="container-info">
                         <h4>${cont.name}</h4>
                         <p>Immagine: ${cont.image} • ID: ${cont.id} • Porta: ${cont.ports}</p>
@@ -187,7 +209,7 @@ async function updateRunningContainers() {
             `;
         });
         
-        container.innerHTML = html;
+        list.innerHTML = html;
         console.log('✅ Container attivi aggiornati');
     } catch (error) {
         console.error('❌ Errore aggiornamento container attivi:', error);
@@ -202,11 +224,10 @@ async function updateStoppedContainers() {
         const response = await fetch('/api/containers/stopped');
         const containers = await response.json();
         
-        const container = document.querySelector('#inactive .containers-section');
+        const list = document.getElementById('inactive-list');
         
         if (containers.length === 0) {
-            container.innerHTML = `
-                <h2 class="section-title">🔴 Container Non Attivi</h2>
+            list.innerHTML = `
                 <p style="text-align: center; color: #94a3b8; padding: 20px;">
                     Nessun container fermato
                 </p>
@@ -214,11 +235,11 @@ async function updateStoppedContainers() {
             return;
         }
         
-        let html = '<h2 class="section-title">🔴 Container Non Attivi</h2>';
+        let html = '';
         
         containers.forEach(cont => {
             html += `
-                <div class="container-item">
+                <div class="container-item" data-name="${cont.name.toLowerCase()}">
                     <div class="container-info">
                         <h4>${cont.name}</h4>
                         <p>Immagine: ${cont.image} • ID: ${cont.id} • Porta: ${cont.ports}</p>
@@ -231,7 +252,7 @@ async function updateStoppedContainers() {
             `;
         });
         
-        container.innerHTML = html;
+        list.innerHTML = html;
         console.log('✅ Container fermati aggiornati');
     } catch (error) {
         console.error('❌ Errore aggiornamento container fermati:', error);
@@ -364,6 +385,11 @@ document.head.appendChild(style);
 // Inizializzazione quando il DOM è caricato
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🐳 Docker Watcher inizializzato');
+    
+    // Setup ricerca per ogni sezione
+    setupSearch('search-images', 'images-list');
+    setupSearch('search-active', 'active-list');
+    setupSearch('search-inactive', 'inactive-list');
     
     // Primo aggiornamento immediato
     updateAllData();

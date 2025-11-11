@@ -76,7 +76,7 @@ function initCharts() {
             labels: [],
             datasets: [
                 {
-                    label: 'Network IN (MB)',
+                    label: 'Network IN (MB/s)',
                     data: [],
                     borderColor: '#22c55e',
                     backgroundColor: 'rgba(34, 197, 94, 0.1)',
@@ -84,7 +84,7 @@ function initCharts() {
                     fill: true
                 },
                 {
-                    label: 'Network OUT (MB)',
+                    label: 'Network OUT (MB/s)',
                     data: [],
                     borderColor: '#ef4444',
                     backgroundColor: 'rgba(239, 68, 68, 0.1)',
@@ -104,7 +104,7 @@ function initCharts() {
             labels: [],
             datasets: [
                 {
-                    label: 'Disk READ (MB)',
+                    label: 'Disk READ (MB/s)',
                     data: [],
                     borderColor: '#f59e0b',
                     backgroundColor: 'rgba(245, 158, 11, 0.1)',
@@ -112,7 +112,7 @@ function initCharts() {
                     fill: true
                 },
                 {
-                    label: 'Disk WRITE (MB)',
+                    label: 'Disk WRITE (MB/s)',
                     data: [],
                     borderColor: '#ec4899',
                     backgroundColor: 'rgba(236, 72, 153, 0.1)',
@@ -222,10 +222,10 @@ async function updateRealtimeStats() {
         document.getElementById('ram-percent').textContent = stats.mem_percent.toFixed(2) + '% di ' + stats.mem_limit_mb.toFixed(2) + ' MB';
         document.getElementById('ram-progress').style.width = Math.min(stats.mem_percent, 100) + '%';
         
-        document.getElementById('net-in-value').textContent = stats.net_input_mb.toFixed(2) + ' MB';
-        document.getElementById('net-out-value').textContent = stats.net_output_mb.toFixed(2) + ' MB';
-        document.getElementById('disk-read-value').textContent = stats.disk_read_mb.toFixed(2) + ' MB';
-        document.getElementById('disk-write-value').textContent = stats.disk_write_mb.toFixed(2) + ' MB';
+        document.getElementById('net-in-value').textContent = stats.net_input_mb.toFixed(2) + ' MB/s';
+        document.getElementById('net-out-value').textContent = stats.net_output_mb.toFixed(2) + ' MB/s';
+        document.getElementById('disk-read-value').textContent = stats.disk_read_mb.toFixed(2) + ' MB/s';
+        document.getElementById('disk-write-value').textContent = stats.disk_write_mb.toFixed(2) + ' MB/s';
 
         // Cambia colore della progress bar se CPU > 80%
         const cpuProgress = document.getElementById('cpu-progress');
@@ -315,13 +315,13 @@ document.addEventListener('DOMContentLoaded', function() {
     loadStatsHistory();
     
     // Prima lettura stats e log
-    //updateRealtimeStats();
+    updateRealtimeStats();
     updateLogs();
     
     // Aggiornamento automatico
     setInterval(updateRealtimeStats, 10000);   // Stats ogni 10 secondi (frequente per real-time)
     setInterval(updateLogs, 15000);             // Log ogni 15 secondi
-    //setInterval(loadStatsHistory, 60000);       // Storico ogni 60 secondi (quando ci sono nuovi dati dal backend)
+    setInterval(loadStatsHistory, 60000);       // Storico ogni 60 secondi (quando ci sono nuovi dati dal backend)
     
     console.log('✅ Auto-refresh attivo:');
     console.log('   📊 Stats real-time: ogni 10 secondi');
@@ -330,7 +330,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     document.addEventListener('visibilitychange', function() {
         if (document.visibilityState === 'visible') {
-            console.log('📌 Pagina visibile di nuovo, aggiornamento dati...');
+            console.log('🔌 Pagina visibile di nuovo, aggiornamento dati...');
             updateRealtimeStats();
             updateLogs();
             loadStatsHistory();

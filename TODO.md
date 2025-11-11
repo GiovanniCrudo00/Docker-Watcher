@@ -1,9 +1,9 @@
 ## TODO
 ------------------------------------
 ### Minor Features
-1. Aggiustare orario del dettaglio di container, per ora riporta orario Z
-2. Sincronizzare bene le stampe dei grafici quando viene caricata la pagina
-3. Aggiustare i calcoli sui consumi, in questo momento non è un valore reale ma è la somma dei precedenti
+1. Sincronizzare bene le stampe dei grafici quando viene caricata la pagina
+2. Inserire login scemo all'inizio [FARE DOPO]
+3. Bot Telegram per notifiche
 ------------------------------------
 ### Main Features
 
