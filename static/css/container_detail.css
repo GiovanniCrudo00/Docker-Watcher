@@ -138,37 +138,104 @@
     margin-bottom: 20px;
 }
 
+.logs-info {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.log-search-box {
+    width: 100%;
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 12px 16px;
+    color: #e2e8f0;
+    font-size: 0.95em;
+    font-family: 'Courier New', monospace;
+    transition: all 0.3s;
+}
+
+.log-search-box:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.log-search-box::placeholder {
+    color: #64748b;
+}
+
+.clear-search-btn {
+    margin-left: 10px;
+    background: rgba(239, 68, 68, 0.2);
+    border: 1px solid #ef4444;
+    color: #ef4444;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9em;
+    font-weight: 600;
+    transition: all 0.3s;
+}
+
+.clear-search-btn:hover {
+    background: rgba(239, 68, 68, 0.3);
+    transform: scale(1.05);
+}
+
 .logs-container {
     background: rgba(15, 23, 42, 0.95);
     border: 1px solid #334155;
     border-radius: 8px;
     padding: 20px;
     font-family: 'Courier New', monospace;
-    font-size: 0.9em;
-    max-height: 400px;
+    font-size: 0.85em;
+    max-height: 600px;
     overflow-y: auto;
 }
 
 .log-line {
     color: #94a3b8;
-    padding: 4px 0;
+    padding: 6px 0;
     border-bottom: 1px solid rgba(51, 65, 85, 0.3);
     white-space: pre-wrap;
     word-break: break-all;
+    line-height: 1.5;
+    transition: background-color 0.3s;
 }
 
 .log-line:last-child {
     border-bottom: none;
 }
 
+.log-line.hidden {
+    display: none;
+}
+
+.log-line.highlight {
+    background: rgba(59, 130, 246, 0.15);
+    border-left: 3px solid #3b82f6;
+    padding-left: 10px;
+}
+
 .log-timestamp {
     color: #3b82f6;
     font-weight: 600;
+    margin-right: 8px;
+}
+
+.search-highlight {
+    background-color: rgba(251, 191, 36, 0.4);
+    color: #fbbf24;
+    font-weight: 600;
+    padding: 2px 4px;
+    border-radius: 3px;
 }
 
 /* Scrollbar personalizzata per logs */
 .logs-container::-webkit-scrollbar {
-    width: 8px;
+    width: 10px;
 }
 
 .logs-container::-webkit-scrollbar-track {

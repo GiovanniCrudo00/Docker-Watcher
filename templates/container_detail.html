@@ -36,8 +36,10 @@
                 <p>{{ container.id }}</p>
             </div>
             <div class="info-card">
-                <h3>📊 Status</h3>
-                <p><span class="status running">{{ container.status }}</span></p>
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                    <h3 style="margin: 0;">📊 Status</h3>
+                    <span class="status running">{{ container.status }}</span>
+                </div>
             </div>
             <div class="info-card">
                 <h3>📅 Creato</h3>
@@ -116,7 +118,28 @@
 
         <!-- Log Container -->
         <div class="logs-section">
-            <h2>📄 Log in Tempo Reale (Ultimi 10)</h2>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h2 style="margin: 0;">📄 Log in Tempo Reale (Ultimi 100)</h2>
+                <div class="logs-info">
+                    <span id="log-count" style="color: #94a3b8; font-size: 0.9em;">0 log caricati</span>
+                    <span style="color: #64748b; margin: 0 10px;">•</span>
+                    <span id="log-visible-count" style="color: #3b82f6; font-size: 0.9em;">0 visibili</span>
+                    <span style="color: #64748b; margin: 0 10px;">•</span>
+                    <span id="log-last-update" style="color: #64748b; font-size: 0.85em;">Mai aggiornato</span>
+                </div>
+            </div>
+            
+            <!-- Barra di Ricerca -->
+            <div style="margin-bottom: 15px;">
+                <input 
+                    type="text" 
+                    id="log-search" 
+                    class="log-search-box" 
+                    placeholder="🔍 Cerca nei log..."
+                >
+                <button id="clear-search" class="clear-search-btn" style="display: none;">✕ Cancella</button>
+            </div>
+            
             <div class="logs-container" id="logs-container">
                 <p style="color: #94a3b8;">Caricamento log...</p>
             </div>

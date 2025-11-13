@@ -308,7 +308,6 @@ def get_images_data():
             # Data di creazione dell'immagine
             created_date = img.attrs['Created']
             # Converti in formato leggibile
-            from datetime import datetime
             created_dt = datetime.fromisoformat(created_date.replace('Z', '+00:00'))
             created_str = created_dt.strftime('%d/%m/%Y %H:%M')
             
@@ -355,13 +354,11 @@ def get_containers_data(running_only=True):
             
             # Ottieni data di avvio/riavvio in ORARIO LOCALE
             started_at = container.attrs['State']['StartedAt']
-            # Converti in datetime UTC
-            started_dt_utc = datetime.fromisoformat(started_at.replace('Z', '+00:00'))
-            # Converti in orario locale
-            import time
-            local_offset = time.timezone if not time.daylight else time.altzone
-            local_started = started_dt_utc - timedelta(seconds=local_offset)
-            started_str = local_started.strftime('%d/%m/%Y %H:%M')
+            # Parse la data ISO
+            started_dt = datetime.fromisoformat(started_at.replace('Z', '+00:00'))
+            # Converti in orario locale del sistema
+            started_local = started_dt.astimezone()
+            started_str = started_local.strftime('%d/%m/%Y %H:%M')
             
             # Ottieni health status
             health_status = 'none'
@@ -391,6 +388,7 @@ def get_containers_data(running_only=True):
     except Exception as e:
         print(f"Errore nel recupero container: {e}")
         return []
+
 
 @app.route('/')
 def home():
@@ -546,9 +544,7 @@ def api_container_stats(container_id):
             'disk_write_mb': round(rates['disk_write_mb_s'], 2)
         }
         
-        # Salva nel database
-        save_container_stats(container_id, container.name, current_stats)
-    
+        # NON salvare nel database qui - lo fa solo il thread in background
         
         return jsonify(current_stats)
     except Exception as e:
@@ -573,7 +569,8 @@ def api_container_logs(container_id):
     
     try:
         container = client.containers.get(container_id)
-        logs = container.logs(tail=10, timestamps=True).decode('utf-8')
+        # Modifica: ora prendiamo gli ultimi 100 log invece di 10
+        logs = container.logs(tail=100, timestamps=True).decode('utf-8')
         
         # Formatta i log in array
         log_lines = []
@@ -594,7 +591,7 @@ def collect_stats_background():
         if client:
             try:
                 containers = client.containers.list()
-                print(f"📊 Raccolta stats per {len(containers)} container...")
+                print(f"\n📊 Raccolta stats per {len(containers)} container...")
                 
                 for container in containers:
                     try:
@@ -665,7 +662,7 @@ def collect_stats_background():
                         }
                         
                         # Salva nel database
-                        save_container_stats(container.id, container.name, current_stats)
+                        save_container_stats(container.short_id, container.name, current_stats)
                         print(f"  ✅ {container.name}: CPU={cpu_percent:.1f}% RAM={mem_percent:.1f}% NET_IN={rates['net_input_mb_s']:.2f}MB/s")
                         
                     except Exception as e:
@@ -681,18 +678,17 @@ def collect_stats_background():
         time.sleep(60)  # Ogni minuto
 
 
-# Avvia thread per raccolta statistiche in background
-stats_thread = threading.Thread(target=collect_stats_background, daemon=True)
-stats_thread.start()
+# Flag per evitare avvii multipli del thread
+stats_thread_started = False
 
+# Avvia thread per raccolta statistiche in background SOLO UNA VOLTA
+if not stats_thread_started:
+    stats_thread = threading.Thread(target=collect_stats_background, daemon=True)
+    stats_thread.start()
+    stats_thread_started = True
+    print("✅ Thread di raccolta statistiche avviato all'inizializzazione")
 
-
-import os
 
 if __name__ == '__main__':
-    if os.environ.get("WERKZEUG_RUN_MAIN") == "true":
-        # Avvia thread solo nel processo reale, non nel reloader
-        stats_thread = threading.Thread(target=collect_stats_background, daemon=True)
-        stats_thread.start()
-    
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    # NON avviare il thread qui, è già stato avviato sopra
+    app.run(debug=True, host='0.0.0.0', port=5000, use_reloader=False)

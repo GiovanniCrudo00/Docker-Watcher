@@ -14,12 +14,25 @@ const chartConfig = {
             labels: {
                 color: '#94a3b8'
             }
+        },
+        tooltip: {
+            enabled: true,
+            mode: 'index',
+            intersect: false,
+            callbacks: {
+                title: function(tooltipItems) {
+                    // Mostra il timestamp completo nel tooltip
+                    return tooltipItems[0].label;
+                }
+            }
         }
     },
     scales: {
         x: {
-            ticks: { color: '#94a3b8' },
-            grid: { color: 'rgba(51, 65, 85, 0.3)' }
+            display: false,  // Nasconde completamente l'asse X e i suoi label
+            grid: { 
+                display: false  // Nasconde anche la griglia verticale
+            }
         },
         y: {
             ticks: { color: '#94a3b8' },
@@ -147,18 +160,24 @@ async function loadStatsHistory() {
         const diskReadData = [];
         const diskWriteData = [];
 
-        // Campiona i dati (max 100 punti per grafico)
-        const step = Math.ceil(history.length / 100);
+        // Non facciamo più il campionamento - usiamo TUTTI i dati
+        // Rimuoviamo questa riga: const step = Math.ceil(history.length / 100);
         
-        for (let i = 0; i < history.length; i += step) {
+        for (let i = 0; i < history.length; i++) {
             const stat = history[i];
             const date = new Date(stat.timestamp);
-            labels.push(date.toLocaleString('it-IT', { 
+            
+            // Formatta timestamp completo per il tooltip
+            const fullTimestamp = date.toLocaleString('it-IT', { 
+                year: 'numeric',
                 month: 'short', 
                 day: 'numeric', 
                 hour: '2-digit', 
-                minute: '2-digit' 
-            }));
+                minute: '2-digit',
+                second: '2-digit'
+            });
+            
+            labels.push(fullTimestamp);
             
             cpuData.push(stat.cpu_percent);
             memData.push(stat.mem_usage_mb);
@@ -256,6 +275,85 @@ async function updateRealtimeStats() {
 }
 
 /**
+ * Evidenzia il testo di ricerca nel log
+ */
+function highlightSearchText(text, searchTerm) {
+    if (!searchTerm) return text;
+    
+    const regex = new RegExp(`(${searchTerm})`, 'gi');
+    return text.replace(regex, '<span class="search-highlight">$1</span>');
+}
+
+/**
+ * Funzione di ricerca nei log
+ */
+function setupLogSearch() {
+    const searchInput = document.getElementById('log-search');
+    const clearButton = document.getElementById('clear-search');
+    const logsContainer = document.getElementById('logs-container');
+    
+    searchInput.addEventListener('input', function() {
+        const searchTerm = this.value.toLowerCase().trim();
+        const logLines = logsContainer.querySelectorAll('.log-line');
+        let visibleCount = 0;
+        
+        // Mostra/nascondi bottone cancella
+        if (searchTerm) {
+            clearButton.style.display = 'inline-block';
+        } else {
+            clearButton.style.display = 'none';
+        }
+        
+        logLines.forEach(line => {
+            const logText = line.getAttribute('data-original-text') || line.textContent;
+            
+            if (!searchTerm) {
+                // Se non c'è ricerca, mostra tutto senza highlight
+                line.classList.remove('hidden', 'highlight');
+                line.innerHTML = logText;
+                visibleCount++;
+            } else {
+                // Cerca nel testo
+                if (logText.toLowerCase().includes(searchTerm)) {
+                    line.classList.remove('hidden');
+                    line.classList.add('highlight');
+                    
+                    // Salva il testo originale se non esiste
+                    if (!line.getAttribute('data-original-text')) {
+                        line.setAttribute('data-original-text', logText);
+                    }
+                    
+                    // Evidenzia il termine cercato
+                    line.innerHTML = highlightSearchText(logText, searchTerm);
+                    visibleCount++;
+                } else {
+                    line.classList.add('hidden');
+                    line.classList.remove('highlight');
+                }
+            }
+        });
+        
+        // Aggiorna contatore log visibili
+        document.getElementById('log-visible-count').textContent = `${visibleCount} visibili`;
+        
+        // Scroll automatico al primo risultato se c'è una ricerca
+        if (searchTerm && visibleCount > 0) {
+            const firstVisible = logsContainer.querySelector('.log-line:not(.hidden)');
+            if (firstVisible) {
+                firstVisible.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }
+    });
+    
+    // Bottone per cancellare la ricerca
+    clearButton.addEventListener('click', function() {
+        searchInput.value = '';
+        searchInput.dispatchEvent(new Event('input'));
+        searchInput.focus();
+    });
+}
+
+/**
  * Aggiorna i log del container
  */
 async function updateLogs() {
@@ -270,12 +368,26 @@ async function updateLogs() {
         }
 
         const logsContainer = document.getElementById('logs-container');
+        
+        // Salva il termine di ricerca corrente
+        const searchInput = document.getElementById('log-search');
+        const currentSearch = searchInput ? searchInput.value : '';
+        
         logsContainer.innerHTML = '';
 
         if (data.logs.length === 0) {
             logsContainer.innerHTML = '<p style="color: #94a3b8;">Nessun log disponibile</p>';
+            document.getElementById('log-count').textContent = '0 log caricati';
+            document.getElementById('log-visible-count').textContent = '0 visibili';
             return;
         }
+
+        // Aggiorna il contatore dei log
+        document.getElementById('log-count').textContent = `${data.logs.length} log caricati`;
+        
+        // Aggiorna il timestamp dell'ultimo aggiornamento
+        const now = new Date();
+        document.getElementById('log-last-update').textContent = `Aggiornato: ${now.toLocaleTimeString('it-IT')}`;
 
         data.logs.forEach(log => {
             const logLine = document.createElement('div');
@@ -283,19 +395,37 @@ async function updateLogs() {
             
             // Formatta il log con timestamp in evidenza
             const parts = log.split(' ');
+            let logText;
             if (parts.length > 0) {
                 const timestamp = parts[0];
                 const message = parts.slice(1).join(' ');
+                logText = `${timestamp} ${message}`;
                 logLine.innerHTML = `<span class="log-timestamp">${timestamp}</span> ${message}`;
             } else {
+                logText = log;
                 logLine.textContent = log;
             }
+            
+            // Salva il testo originale per la ricerca
+            logLine.setAttribute('data-original-text', logText);
             
             logsContainer.appendChild(logLine);
         });
 
-        // Auto-scroll in fondo
-        logsContainer.scrollTop = logsContainer.scrollHeight;
+        // Riapplica la ricerca se era attiva
+        if (currentSearch) {
+            searchInput.value = currentSearch;
+            searchInput.dispatchEvent(new Event('input'));
+        } else {
+            document.getElementById('log-visible-count').textContent = `${data.logs.length} visibili`;
+        }
+
+        // Auto-scroll in fondo solo se non c'è ricerca attiva
+        if (!currentSearch) {
+            logsContainer.scrollTop = logsContainer.scrollHeight;
+        }
+
+        console.log(`✅ ${data.logs.length} log aggiornati`);
 
     } catch (error) {
         console.error('❌ Errore aggiornamento log:', error);
@@ -318,14 +448,17 @@ document.addEventListener('DOMContentLoaded', function() {
     updateRealtimeStats();
     updateLogs();
     
+    // Setup ricerca log
+    setupLogSearch();
+    
     // Aggiornamento automatico
     setInterval(updateRealtimeStats, 10000);   // Stats ogni 10 secondi (frequente per real-time)
-    setInterval(updateLogs, 15000);             // Log ogni 15 secondi
+    setInterval(updateLogs, 60000);             // Log ogni 60 secondi (1 minuto)
     setInterval(loadStatsHistory, 60000);       // Storico ogni 60 secondi (quando ci sono nuovi dati dal backend)
     
     console.log('✅ Auto-refresh attivo:');
     console.log('   📊 Stats real-time: ogni 10 secondi');
-    console.log('   📄 Log: ogni 15 secondi');
+    console.log('   📄 Log: ogni 60 secondi (1 minuto)');
     console.log('   📈 Grafici storici: ogni 60 secondi');
 
     document.addEventListener('visibilitychange', function() {
