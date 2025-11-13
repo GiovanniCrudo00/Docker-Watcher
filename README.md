@@ -5,7 +5,7 @@ Docker Watcher è una webapp basata su flask per il monitoraggio dei container d
 Tramite la dashboard è possibile monitorare:
 
 - Le immagini docker
-- I container in esecuzione
+- I container in esecuzione ed eventuali healthchecks
 - I container stoppati
 
 Inoltre è possibile monitorare il consumo di CPU e di RAM dell'host.
