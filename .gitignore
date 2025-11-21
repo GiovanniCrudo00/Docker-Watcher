@@ -1,3 +1,10 @@
 my-env/
 docker_stats.db
 TODO.md
+certs/
+logs/
+nginx.conf
+start.sh
+docker-compose.yml
+Dockerfile 
+.dockerignore

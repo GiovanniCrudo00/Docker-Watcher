@@ -18,8 +18,8 @@ except DockerException as e:
     client = None
 
 # Path del database
-DB_PATH = os.path.join(os.path.dirname(__file__), 'docker_stats.db')
-
+DB_PATH = os.getenv('DB_PATH', os.path.join(os.path.dirname(__file__), 'data', 'docker_stats.db'))
+os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 # Dizionario per memorizzare gli ultimi valori cumulativi di ogni container
 # Formato: {container_id: {'timestamp': datetime, 'net_in': bytes, 'net_out': bytes, 'disk_read': bytes, 'disk_write': bytes}}
 last_cumulative_values = {}
@@ -690,5 +690,15 @@ if not stats_thread_started:
 
 
 if __name__ == '__main__':
-    # NON avviare il thread qui, è già stato avviato sopra
-    app.run(debug=True, host='0.0.0.0', port=5000, use_reloader=False)
+    
+    # Determina host e porta da environment variables
+    host = os.getenv('FLASK_HOST', '0.0.0.0')
+    port = int(os.getenv('FLASK_PORT', 5001))
+    debug = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
+    
+    app.run(
+        debug=debug,
+        host=host,
+        port=port,
+        use_reloader=False  # IMPORTANTE: evita doppio thread
+    )
