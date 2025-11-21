@@ -4,14 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Docker Watcher</title>
-    <link rel="icon" type="image/png" href="https://www.docker.com/wp-content/uploads/2022/03/Moby-logo.png">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/docker-logo.png') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
     <div class="container">
         <header>
             <div class="header-content">
-                <img src="https://www.docker.com/wp-content/uploads/2022/03/Moby-logo.png" alt="Docker Logo" class="docker-logo">
+                <img src="{{ url_for('static', filename='img/docker-logo.png') }}" alt="Docker Logo" class="docker-logo">
                 <div class="header-text">
                     <h1>Docker Watcher</h1>
                     <p class="subtitle">Docker container monitor app</p>
