@@ -10,25 +10,26 @@ import os
 
 app = Flask(__name__)
 
-# Inizializza il client Docker
+# Initialize Docker client
 try:
     client = docker.from_env()
 except DockerException as e:
-    print(f"Errore connessione Docker: {e}")
+    print(f"Docker connection error: {e}")
     client = None
 
-# Path del database
+# Database path
 DB_PATH = os.getenv('DB_PATH', os.path.join(os.path.dirname(__file__), 'data', 'docker_stats.db'))
 os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-# Dizionario per memorizzare gli ultimi valori cumulativi di ogni container
-# Formato: {container_id: {'timestamp': datetime, 'net_in': bytes, 'net_out': bytes, 'disk_read': bytes, 'disk_write': bytes}}
+
+# Dictionary to store last cumulative values for each container
+# Format: {container_id: {'timestamp': datetime, 'net_in': bytes, 'net_out': bytes, 'disk_read': bytes, 'disk_write': bytes}}
 last_cumulative_values = {}
 
 
-# ===== FUNZIONI DATABASE =====
+# ===== DATABASE FUNCTIONS =====
 
 def init_database():
-    """Inizializza il database SQLite"""
+    """Initialize SQLite database"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
@@ -50,7 +51,7 @@ def init_database():
         )
     ''')
     
-    # Indice per query più veloci
+    # Index for faster queries
     cursor.execute('''
         CREATE INDEX IF NOT EXISTS idx_container_timestamp 
         ON container_stats(container_id, timestamp DESC)
@@ -58,11 +59,11 @@ def init_database():
     
     conn.commit()
     conn.close()
-    print("✅ Database inizializzato")
+    print("✅ Database initialized")
 
 
 def save_container_stats(container_id, container_name, stats_data):
-    """Salva le statistiche nel database"""
+    """Save statistics to database"""
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
@@ -90,16 +91,16 @@ def save_container_stats(container_id, container_name, stats_data):
         conn.commit()
         conn.close()
     except Exception as e:
-        print(f"❌ Errore salvataggio stats: {e}")
+        print(f"❌ Error saving stats: {e}")
 
 
 def get_container_stats_history(container_id, days=7):
-    """Recupera lo storico delle statistiche per un container"""
+    """Retrieve statistics history for a container"""
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         
-        # Calcola la data limite (7 giorni fa)
+        # Calculate limit date (7 days ago)
         limit_date = (datetime.now() - timedelta(days=days)).isoformat()
         
         cursor.execute('''
@@ -113,7 +114,7 @@ def get_container_stats_history(container_id, days=7):
         rows = cursor.fetchall()
         conn.close()
         
-        # Converti in lista di dict
+        # Convert to list of dicts
         history = []
         for row in rows:
             history.append({
@@ -130,17 +131,17 @@ def get_container_stats_history(container_id, days=7):
         
         return history
     except Exception as e:
-        print(f"❌ Errore recupero storico: {e}")
+        print(f"❌ Error retrieving history: {e}")
         return []
 
 
 def cleanup_old_stats():
-    """Rimuove le statistiche più vecchie di 7 giorni"""
+    """Remove statistics older than 7 days"""
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         
-        # Data limite (7 giorni fa)
+        # Limit date (7 days ago)
         limit_date = (datetime.now() - timedelta(days=7)).isoformat()
         
         cursor.execute('''
@@ -153,32 +154,32 @@ def cleanup_old_stats():
         conn.close()
         
         if deleted_count > 0:
-            print(f"🧹 Puliti {deleted_count} record vecchi dal database")
+            print(f"🧹 Cleaned {deleted_count} old records from database")
     except Exception as e:
-        print(f"❌ Errore pulizia database: {e}")
+        print(f"❌ Error cleaning database: {e}")
 
 
-# Inizializza il database all'avvio
+# Initialize database on startup
 init_database()
 
 
 def calculate_rate(container_id, current_cumulative_values, current_timestamp):
     """
-    Calcola i rate (MB/s) per Network e Disk I/O confrontando con i valori precedenti.
+    Calculate rates (MB/s) for Network and Disk I/O by comparing with previous values.
     
     Args:
-        container_id: ID del container
-        current_cumulative_values: Dict con valori attuali cumulativi in bytes
+        container_id: Container ID
+        current_cumulative_values: Dict with current cumulative values in bytes
                                    {'net_in': bytes, 'net_out': bytes, 'disk_read': bytes, 'disk_write': bytes}
-        current_timestamp: Timestamp corrente (datetime)
+        current_timestamp: Current timestamp (datetime)
     
     Returns:
-        Dict con i rate in MB/s: {'net_input_mb_s': float, 'net_output_mb_s': float, 
+        Dict with rates in MB/s: {'net_input_mb_s': float, 'net_output_mb_s': float, 
                                    'disk_read_mb_s': float, 'disk_write_mb_s': float}
     """
     global last_cumulative_values
     
-    # Se non abbiamo valori precedenti per questo container, salviamo questi e ritorniamo 0
+    # If we don't have previous values for this container, save these and return 0
     if container_id not in last_cumulative_values:
         last_cumulative_values[container_id] = {
             'timestamp': current_timestamp,
@@ -194,13 +195,13 @@ def calculate_rate(container_id, current_cumulative_values, current_timestamp):
             'disk_write_mb_s': 0.0
         }
     
-    # Recupera i valori precedenti
+    # Retrieve previous values
     last_values = last_cumulative_values[container_id]
     
-    # Calcola il tempo trascorso in secondi
+    # Calculate elapsed time in seconds
     time_delta = (current_timestamp - last_values['timestamp']).total_seconds()
     
-    # Se il tempo trascorso è troppo piccolo, ritorna 0 per evitare divisioni per numeri molto piccoli
+    # If elapsed time is too small, return 0 to avoid divisions by very small numbers
     if time_delta < 0.1:
         return {
             'net_input_mb_s': 0.0,
@@ -209,14 +210,14 @@ def calculate_rate(container_id, current_cumulative_values, current_timestamp):
             'disk_write_mb_s': 0.0
         }
     
-    # Calcola le differenze in bytes
+    # Calculate differences in bytes
     net_in_diff = current_cumulative_values['net_in'] - last_values['net_in']
     net_out_diff = current_cumulative_values['net_out'] - last_values['net_out']
     disk_read_diff = current_cumulative_values['disk_read'] - last_values['disk_read']
     disk_write_diff = current_cumulative_values['disk_write'] - last_values['disk_write']
     
-    # Gestione del caso in cui i valori cumulativi si azzerano (restart del container)
-    # In questo caso, usiamo direttamente i valori attuali come differenza
+    # Handle case where cumulative values reset (container restart)
+    # In this case, use current values directly as difference
     if net_in_diff < 0:
         net_in_diff = current_cumulative_values['net_in']
     if net_out_diff < 0:
@@ -226,7 +227,7 @@ def calculate_rate(container_id, current_cumulative_values, current_timestamp):
     if disk_write_diff < 0:
         disk_write_diff = current_cumulative_values['disk_write']
     
-    # Calcola i rate in MB/s
+    # Calculate rates in MB/s
     rates = {
         'net_input_mb_s': (net_in_diff / (1024 * 1024)) / time_delta,
         'net_output_mb_s': (net_out_diff / (1024 * 1024)) / time_delta,
@@ -234,7 +235,7 @@ def calculate_rate(container_id, current_cumulative_values, current_timestamp):
         'disk_write_mb_s': (disk_write_diff / (1024 * 1024)) / time_delta
     }
     
-    # Aggiorna i valori precedenti con quelli attuali
+    # Update previous values with current ones
     last_cumulative_values[container_id] = {
         'timestamp': current_timestamp,
         'net_in': current_cumulative_values['net_in'],
@@ -247,25 +248,25 @@ def calculate_rate(container_id, current_cumulative_values, current_timestamp):
 
 
 def get_docker_stats():
-    """Raccoglie statistiche generali su Docker"""
+    """Collect general Docker statistics"""
     if not client:
         return None
     
     try:
-        # Ottieni tutte le immagini
+        # Get all images
         images = client.images.list()
         
-        # Ottieni tutti i container
+        # Get all containers
         all_containers = client.containers.list(all=True)
         running_containers = [c for c in all_containers if c.status == 'running']
         stopped_containers = [c for c in all_containers if c.status != 'running']
         
-        # Ottieni uso CPU e RAM del sistema
+        # Get system CPU and RAM usage
         cpu_percent = psutil.cpu_percent(interval=1)
         ram = psutil.virtual_memory()
         ram_percent = ram.percent
-        ram_used_gb = round(ram.used / (1024 ** 3), 2)  # Converti byte in GB
-        ram_total_gb = round(ram.total / (1024 ** 3), 2)  # Converti byte in GB
+        ram_used_gb = round(ram.used / (1024 ** 3), 2)  # Convert bytes to GB
+        ram_total_gb = round(ram.total / (1024 ** 3), 2)  # Convert bytes to GB
         
         return {
             'images_count': len(images),
@@ -278,12 +279,12 @@ def get_docker_stats():
             'ram_total_gb': ram_total_gb
         }
     except Exception as e:
-        print(f"Errore nel recupero statistiche: {e}")
+        print(f"Error retrieving statistics: {e}")
         return None
 
 
 def get_images_data():
-    """Ottieni informazioni sulle immagini Docker"""
+    """Get Docker images information"""
     if not client:
         return []
     
@@ -291,23 +292,23 @@ def get_images_data():
         images = client.images.list()
         images_data = []
         
-        # Ottieni container in esecuzione per verificare quali immagini sono in uso
+        # Get running containers to check which images are in use
         running_containers = client.containers.list()
         used_images = {c.image.id for c in running_containers}
         
         for img in images:
-            # Ottieni tag dell'immagine
+            # Get image tags
             tags = img.tags[0] if img.tags else 'none:none'
             
-            # Calcola dimensione in MB
+            # Calculate size in MB
             size_mb = round(img.attrs['Size'] / (1024 * 1024), 1)
             
-            # Verifica se l'immagine è in uso
+            # Check if image is in use
             in_use = img.id in used_images
             
-            # Data di creazione dell'immagine
+            # Image creation date
             created_date = img.attrs['Created']
-            # Converti in formato leggibile
+            # Convert to readable format
             created_dt = datetime.fromisoformat(created_date.replace('Z', '+00:00'))
             created_str = created_dt.strftime('%d/%m/%Y %H:%M')
             
@@ -321,12 +322,12 @@ def get_images_data():
         
         return images_data
     except Exception as e:
-        print(f"Errore nel recupero immagini: {e}")
+        print(f"Error retrieving images: {e}")
         return []
 
 
 def get_containers_data(running_only=True):
-    """Ottieni informazioni sui container Docker"""
+    """Get Docker containers information"""
     if not client:
         return []
     
@@ -335,7 +336,7 @@ def get_containers_data(running_only=True):
         containers_data = []
         
         for container in containers:
-            # Ottieni informazioni sulle porte
+            # Get port information
             ports = container.attrs['NetworkSettings']['Ports']
             port_mappings = []
             
@@ -346,21 +347,21 @@ def get_containers_data(running_only=True):
                             host_port = mapping.get('HostPort', '')
                             port_mappings.append(f"{host_port}:{container_port}")
             
-            # Se non ci sono porte mappate, mostra N/A invece di un messaggio lungo
+            # If no ports are mapped, show N/A instead of a long message
             ports_str = ', '.join(port_mappings) if port_mappings else 'N/A'
             
-            # Ottieni nome dell'immagine
+            # Get image name
             image_name = container.image.tags[0] if container.image.tags else 'unknown'
             
-            # Ottieni data di avvio/riavvio in ORARIO LOCALE
+            # Get start/restart date in LOCAL TIME
             started_at = container.attrs['State']['StartedAt']
-            # Parse la data ISO
+            # Parse ISO date
             started_dt = datetime.fromisoformat(started_at.replace('Z', '+00:00'))
-            # Converti in orario locale del sistema
+            # Convert to system local time
             started_local = started_dt.astimezone()
             started_str = started_local.strftime('%d/%m/%Y %H:%M')
             
-            # Ottieni health status
+            # Get health status
             health_status = 'none'
             health_class = 'none'
             
@@ -386,12 +387,12 @@ def get_containers_data(running_only=True):
         
         return containers_data
     except Exception as e:
-        print(f"Errore nel recupero container: {e}")
+        print(f"Error retrieving containers: {e}")
         return []
 
 
 def get_networks_data():
-    """Ottieni informazioni sulle reti Docker"""
+    """Get Docker networks information"""
     if not client:
         return []
     
@@ -400,26 +401,26 @@ def get_networks_data():
         networks_data = []
         
         for network in networks:
-            # IMPORTANTE: Ricarica la rete per avere dati aggiornati
+            # IMPORTANT: Reload network to get updated data
             try:
                 network.reload()
             except:
                 pass
             
-            # Ottieni container connessi alla rete
+            # Get connected containers
             connected_containers = []
             
-            # Debug: stampa info rete
+            # Debug: print network info
             print(f"🌐 Processing network: {network.name}")
             
             containers_in_network = network.attrs.get('Containers', {})
             print(f"   Found {len(containers_in_network)} containers in network")
             
-            # Se non trova container, prova metodo alternativo
+            # If no containers found, try alternative method
             if not containers_in_network:
                 print(f"   ⚠️  No containers in attrs, trying alternative method...")
                 
-                # Metodo alternativo: cerca tutti i container e vedi quali sono connessi
+                # Alternative method: search all containers and see which are connected
                 all_containers = client.containers.list(all=True)
                 for container in all_containers:
                     network_settings = container.attrs.get('NetworkSettings', {})
@@ -428,7 +429,7 @@ def get_networks_data():
                     if network.name in networks_dict:
                         net_info = networks_dict[network.name]
                         
-                        # Ottieni IPv4
+                        # Get IPv4
                         ipv4 = net_info.get('IPAddress', 'N/A')
                         ipv6 = net_info.get('GlobalIPv6Address', 'N/A')
                         
@@ -442,16 +443,16 @@ def get_networks_data():
                         
                         print(f"   ✅ Found via alternative: {container.name} ({ipv4})")
             else:
-                # Metodo standard
+                # Standard method
                 for container_id, container_info in containers_in_network.items():
                     try:
                         container = client.containers.get(container_id)
                         
-                        # Ottieni IPv4 (rimuovi /subnet se presente)
+                        # Get IPv4 (remove /subnet if present)
                         ipv4_raw = container_info.get('IPv4Address', '')
                         ipv4 = ipv4_raw.split('/')[0] if ipv4_raw else 'N/A'
                         
-                        # Ottieni IPv6 (rimuovi /subnet se presente)
+                        # Get IPv6 (remove /subnet if present)
                         ipv6_raw = container_info.get('IPv6Address', '')
                         ipv6 = ipv6_raw.split('/')[0] if ipv6_raw else 'N/A'
                         
@@ -469,7 +470,7 @@ def get_networks_data():
                         print(f"   ❌ Error getting container {container_id[:12]}: {e}")
                         continue
             
-            # Ottieni configurazione IPAM
+            # Get IPAM configuration
             ipam_config = network.attrs.get('IPAM', {}).get('Config', [])
             subnet = ipam_config[0].get('Subnet', 'N/A') if ipam_config else 'N/A'
             gateway = ipam_config[0].get('Gateway', 'N/A') if ipam_config else 'N/A'
@@ -488,21 +489,21 @@ def get_networks_data():
             
             print(f"   📊 Network {network.name}: {len(connected_containers)} containers added")
         
-        # Ordina per numero di container (decrescente)
+        # Sort by container count (descending)
         networks_data.sort(key=lambda x: x['container_count'], reverse=True)
         
         print(f"✅ Total networks processed: {len(networks_data)}")
         return networks_data
         
     except Exception as e:
-        print(f"❌ Errore nel recupero networks: {e}")
+        print(f"❌ Error retrieving networks: {e}")
         import traceback
         traceback.print_exc()
         return []
 
 
 def get_volumes_data():
-    """Ottieni informazioni sui volumi Docker"""
+    """Get Docker volumes information"""
     if not client:
         return []
     
@@ -510,11 +511,11 @@ def get_volumes_data():
         volumes = client.volumes.list()
         volumes_data = []
         
-        # Ottieni tutti i container per verificare quali volumi sono in uso
+        # Get all containers to check which volumes are in use
         all_containers = client.containers.list(all=True)
         
         for volume in volumes:
-            # Trova container che usano questo volume
+            # Find containers using this volume
             using_containers = []
             for container in all_containers:
                 mounts = container.attrs.get('Mounts', [])
@@ -528,9 +529,6 @@ def get_volumes_data():
                             'mode': mount.get('Mode', 'rw')
                         })
             
-            # Calcola dimensione (se possibile)
-            # Nota: Docker non fornisce size direttamente, questa è una stima
-            
             volumes_data.append({
                 'name': volume.name,
                 'driver': volume.attrs.get('Driver', 'local'),
@@ -542,22 +540,22 @@ def get_volumes_data():
                 'in_use': len(using_containers) > 0
             })
         
-        # Ordina: prima quelli in uso, poi per numero di container
+        # Sort: first those in use, then by container count
         volumes_data.sort(key=lambda x: (not x['in_use'], -x['container_count']))
         
         return volumes_data
     except Exception as e:
-        print(f"Errore nel recupero volumes: {e}")
+        print(f"Error retrieving volumes: {e}")
         return []
 
 
 @app.route('/')
 def home():
-    """Homepage con dati Docker"""
+    """Homepage with Docker data"""
     stats = get_docker_stats()
     
     if not stats:
-        # Dati di fallback se Docker non è disponibile
+        # Fallback data if Docker is not available
         stats = {
             'images_count': 0,
             'total_containers': 0,
@@ -571,7 +569,7 @@ def home():
     running_containers = get_containers_data(running_only=True)
     stopped_containers = get_containers_data(running_only=False)
     
-    # Filtra solo i container fermati
+    # Filter only stopped containers
     stopped_containers = [c for c in stopped_containers if c['status'] != 'running']
     
     return render_template('index.html', 
@@ -583,21 +581,21 @@ def home():
 
 @app.route('/api/stats')
 def api_stats():
-    """API endpoint per ottenere statistiche aggiornate"""
+    """API endpoint to get updated statistics"""
     stats = get_docker_stats()
-    return jsonify(stats if stats else {'error': 'Docker non disponibile'})
+    return jsonify(stats if stats else {'error': 'Docker not available'})
 
 
 @app.route('/api/images')
 def api_images():
-    """API endpoint per ottenere lista immagini"""
+    """API endpoint to get images list"""
     images = get_images_data()
     return jsonify(images)
 
 
 @app.route('/api/containers/<status>')
 def api_containers(status):
-    """API endpoint per ottenere container (running/stopped)"""
+    """API endpoint to get containers (running/stopped)"""
     running_only = status == 'running'
     containers = get_containers_data(running_only=running_only)
     
@@ -609,14 +607,14 @@ def api_containers(status):
 
 @app.route('/container/<container_id>')
 def container_detail(container_id):
-    """Pagina di dettaglio del container"""
+    """Container detail page"""
     if not client:
-        return "Docker non disponibile", 500
+        return "Docker not available", 500
     
     try:
         container = client.containers.get(container_id)
         
-        # Informazioni base del container
+        # Container basic information
         container_info = {
             'id': container.short_id,
             'name': container.name,
@@ -627,20 +625,20 @@ def container_detail(container_id):
         
         return render_template('container_detail.html', container=container_info)
     except Exception as e:
-        return f"Errore: {e}", 404
+        return f"Error: {e}", 404
 
 
 @app.route('/api/container/<container_id>/stats')
 def api_container_stats(container_id):
-    """API per ottenere statistiche in tempo reale del container"""
+    """API to get container real-time statistics"""
     if not client:
-        return jsonify({'error': 'Docker non disponibile'}), 500
+        return jsonify({'error': 'Docker not available'}), 500
     
     try:
         container = client.containers.get(container_id)
         stats = container.stats(stream=False)
         
-        # Calcola CPU percentage con gestione errori
+        # Calculate CPU percentage with error handling
         cpu_percent = 0.0
         try:
             cpu_delta = stats['cpu_stats']['cpu_usage']['total_usage'] - \
@@ -652,17 +650,17 @@ def api_container_stats(container_id):
             if system_delta > 0 and cpu_delta > 0:
                 cpu_percent = (cpu_delta / system_delta) * cpu_count * 100.0
         except (KeyError, TypeError, ZeroDivisionError) as e:
-            print(f"⚠️  Calcolo CPU fallito per {container_id}: {e}")
+            print(f"⚠️  CPU calculation failed for {container_id}: {e}")
             cpu_percent = 0.0
         
-        # Calcola Memory usage con gestione errori
+        # Calculate Memory usage with error handling
         mem_usage = stats['memory_stats'].get('usage', 0)
         mem_limit = stats['memory_stats'].get('limit', 1)
         mem_percent = (mem_usage / mem_limit) * 100.0 if mem_limit > 0 else 0.0
         mem_usage_mb = mem_usage / (1024 * 1024)
         mem_limit_mb = mem_limit / (1024 * 1024)
         
-        # Calcola Network I/O - valori cumulativi in bytes
+        # Calculate Network I/O - cumulative values in bytes
         networks = stats.get('networks', {})
         net_input_cumulative = 0
         net_output_cumulative = 0
@@ -672,7 +670,7 @@ def api_container_stats(container_id):
         except (KeyError, TypeError, AttributeError):
             pass
         
-        # Calcola Disk I/O - valori cumulativi in bytes
+        # Calculate Disk I/O - cumulative values in bytes
         blkio_stats = stats.get('blkio_stats', {})
         io_service_bytes = blkio_stats.get('io_service_bytes_recursive', [])
         disk_read_cumulative = 0
@@ -683,7 +681,7 @@ def api_container_stats(container_id):
         except (KeyError, TypeError):
             pass
         
-        # Calcola i rate usando i valori cumulativi
+        # Calculate rates using cumulative values
         current_time = datetime.now()
         cumulative_values = {
             'net_in': net_input_cumulative,
@@ -705,11 +703,11 @@ def api_container_stats(container_id):
             'disk_write_mb': round(rates['disk_write_mb_s'], 2)
         }
         
-        # NON salvare nel database qui - lo fa solo il thread in background
+        # DO NOT save to database here - only background thread does it
         
         return jsonify(current_stats)
     except Exception as e:
-        print(f"❌ Errore stats container {container_id}: {e}")
+        print(f"❌ Error stats container {container_id}: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
@@ -717,23 +715,23 @@ def api_container_stats(container_id):
 
 @app.route('/api/container/<container_id>/stats/history')
 def api_container_stats_history(container_id):
-    """API per ottenere lo storico delle statistiche (ultimi 7 giorni)"""
+    """API to get statistics history (last 7 days)"""
     history = get_container_stats_history(container_id, days=7)
     return jsonify(history)
 
 
 @app.route('/api/container/<container_id>/logs')
 def api_container_logs(container_id):
-    """API per ottenere gli ultimi log del container"""
+    """API to get latest container logs"""
     if not client:
-        return jsonify({'error': 'Docker non disponibile'}), 500
+        return jsonify({'error': 'Docker not available'}), 500
     
     try:
         container = client.containers.get(container_id)
-        # Modifica: ora prendiamo gli ultimi 100 log invece di 10
+        # Modified: now we get the last 100 logs instead of 10
         logs = container.logs(tail=100, timestamps=True).decode('utf-8')
         
-        # Formatta i log in array
+        # Format logs into array
         log_lines = []
         for line in logs.strip().split('\n'):
             if line:
@@ -746,7 +744,7 @@ def api_container_logs(container_id):
 
 @app.route('/networks-volumes')
 def networks_volumes():
-    """Pagina networks e volumes"""
+    """Networks and volumes page"""
     networks = get_networks_data()
     volumes = get_volumes_data()
     
@@ -755,21 +753,21 @@ def networks_volumes():
 
 @app.route('/network/<network_id>/topology')
 def network_topology(network_id):
-    """Pagina topologia di una rete specifica"""
+    """Network topology page for a specific network"""
     if not client:
-        return "Docker non disponibile", 500
+        return "Docker not available", 500
     
     try:
-        # Recupera la rete specifica
+        # Get specific network
         network = client.networks.get(network_id)
         
-        # Ricarica per dati aggiornati
+        # Reload for updated data
         try:
             network.reload()
         except:
             pass
         
-        # Info base della rete
+        # Network basic info
         network_info = {
             'id': network.short_id,
             'name': network.name,
@@ -786,19 +784,19 @@ def network_topology(network_id):
         return render_template('network_topology.html', network=network_info)
         
     except Exception as e:
-        return f"Errore: {e}", 404
+        return f"Error: {e}", 404
 
 
 @app.route('/api/network/<network_id>/topology')
 def api_network_topology(network_id):
-    """API per ottenere dati topologia rete in formato Vis.js"""
+    """API to get network topology data in Vis.js format"""
     if not client:
-        return jsonify({'error': 'Docker non disponibile'}), 500
+        return jsonify({'error': 'Docker not available'}), 500
     
     try:
         network = client.networks.get(network_id)
         
-        # Ricarica
+        # Reload
         try:
             network.reload()
         except:
@@ -807,7 +805,7 @@ def api_network_topology(network_id):
         nodes = []
         edges = []
         
-        # Aggiungi il nodo centrale della rete
+        # Add network central node
         network_node_id = f"network_{network.id}"
         nodes.append({
             'id': network_node_id,
@@ -843,12 +841,12 @@ def api_network_topology(network_id):
             nodes[0]['info']['subnet'] = ipam_config[0].get('Subnet', 'N/A')
             nodes[0]['info']['gateway'] = ipam_config[0].get('Gateway', 'N/A')
         
-        # Trova container connessi (metodo alternativo)
+        # Find connected containers (alternative method)
         connected_containers = []
         containers_in_network = network.attrs.get('Containers', {})
         
         if not containers_in_network:
-            # Metodo alternativo
+            # Alternative method
             all_containers = client.containers.list(all=True)
             for container in all_containers:
                 network_settings = container.attrs.get('NetworkSettings', {})
@@ -863,7 +861,7 @@ def api_network_topology(network_id):
                         'mac': net_info.get('MacAddress', 'N/A')
                     })
         else:
-            # Metodo standard
+            # Standard method
             for container_id, container_info in containers_in_network.items():
                 try:
                     container = client.containers.get(container_id)
@@ -879,25 +877,25 @@ def api_network_topology(network_id):
                 except:
                     continue
         
-        # Aggiungi nodi container
+        # Add container nodes
         for item in connected_containers:
             container = item['container']
             
-                    # Colore basato su status - colori più scuri e contrastati
+            # Color based on status - darker and more contrasted colors
             if container.status == 'running':
-                color_bg = '#065f46'      # Verde scuro
-                color_border = '#10b981'   # Verde brillante per bordo
+                color_bg = '#065f46'      # Dark green
+                color_border = '#10b981'   # Bright green border
                 color_highlight_bg = '#059669'
             elif container.status == 'exited':
-                color_bg = '#1e293b'       # Grigio scuro
-                color_border = '#64748b'   # Grigio medio per bordo
+                color_bg = '#1e293b'       # Dark gray
+                color_border = '#64748b'   # Medium gray border
                 color_highlight_bg = '#334155'
             else:
-                color_bg = '#78350f'       # Arancione scuro
-                color_border = '#f59e0b'   # Arancione brillante per bordo
+                color_bg = '#78350f'       # Dark orange
+                color_border = '#f59e0b'   # Bright orange border
                 color_highlight_bg = '#92400e'
             
-            # Ottieni porte
+            # Get ports
             ports = container.attrs['NetworkSettings']['Ports']
             port_list = []
             if ports:
@@ -938,7 +936,7 @@ def api_network_topology(network_id):
                 }
             })
             
-            # Aggiungi edge tra rete e container
+            # Add edge between network and container
             edges.append({
                 'from': network_node_id,
                 'to': container.id,
@@ -953,28 +951,13 @@ def api_network_topology(network_id):
                 }
             })
         
-        # Aggiungi edges tra container (stessa rete = possono comunicare)
-        # Questo crea una mesh completa, opzionale
-        # for i, item1 in enumerate(connected_containers):
-        #     for item2 in connected_containers[i+1:]:
-        #         edges.append({
-        #             'from': item1['container'].id,
-        #             'to': item2['container'].id,
-        #             'color': {
-        #                 'color': '#334155',
-        #                 'opacity': 0.3
-        #             },
-        #             'dashes': True,
-        #             'width': 1
-        #         })
-        
         return jsonify({
             'nodes': nodes,
             'edges': edges
         })
         
     except Exception as e:
-        print(f"❌ Errore topology: {e}")
+        print(f"❌ Topology error: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
@@ -982,33 +965,33 @@ def api_network_topology(network_id):
 
 @app.route('/api/networks')
 def api_networks():
-    """API endpoint per ottenere lista networks"""
+    """API endpoint to get networks list"""
     networks = get_networks_data()
     return jsonify(networks)
 
 
 @app.route('/api/volumes')
 def api_volumes():
-    """API endpoint per ottenere lista volumes"""
+    """API endpoint to get volumes list"""
     volumes = get_volumes_data()
     return jsonify(volumes)
 
 
 def collect_stats_background():
-    """Funzione che raccoglie statistiche in background ogni minuto"""
-    print("🔄 Thread di raccolta statistiche avviato")
+    """Function that collects statistics in background every minute"""
+    print("🔄 Statistics collection thread started")
     
     while True:
         if client:
             try:
                 containers = client.containers.list()
-                print(f"\n📊 Raccolta stats per {len(containers)} container...")
+                print(f"\n📊 Collecting stats for {len(containers)} containers...")
                 
                 for container in containers:
                     try:
                         stats = container.stats(stream=False)
                         
-                        # Calcola CPU con gestione errori
+                        # Calculate CPU with error handling
                         cpu_percent = 0.0
                         try:
                             cpu_delta = stats['cpu_stats']['cpu_usage']['total_usage'] - \
@@ -1022,14 +1005,14 @@ def collect_stats_background():
                         except (KeyError, TypeError, ZeroDivisionError):
                             cpu_percent = 0.0
                         
-                        # Calcola Memory con gestione errori
+                        # Calculate Memory with error handling
                         mem_usage = stats['memory_stats'].get('usage', 0)
                         mem_limit = stats['memory_stats'].get('limit', 1)
                         mem_percent = (mem_usage / mem_limit) * 100.0 if mem_limit > 0 else 0.0
                         mem_usage_mb = mem_usage / (1024 * 1024)
                         mem_limit_mb = mem_limit / (1024 * 1024)
                         
-                        # Calcola Network I/O - valori cumulativi in bytes
+                        # Calculate Network I/O - cumulative values in bytes
                         networks = stats.get('networks', {})
                         net_input_cumulative = 0
                         net_output_cumulative = 0
@@ -1039,7 +1022,7 @@ def collect_stats_background():
                         except (KeyError, TypeError, AttributeError):
                             pass
                         
-                        # Calcola Disk I/O - valori cumulativi in bytes
+                        # Calculate Disk I/O - cumulative values in bytes
                         blkio_stats = stats.get('blkio_stats', {})
                         io_service_bytes = blkio_stats.get('io_service_bytes_recursive', [])
                         disk_read_cumulative = 0
@@ -1050,7 +1033,7 @@ def collect_stats_background():
                         except (KeyError, TypeError):
                             pass
                         
-                        # Calcola i rate usando i valori cumulativi
+                        # Calculate rates using cumulative values
                         current_time = datetime.now()
                         cumulative_values = {
                             'net_in': net_input_cumulative,
@@ -1072,37 +1055,37 @@ def collect_stats_background():
                             'disk_write_mb': round(rates['disk_write_mb_s'], 2)
                         }
                         
-                        # Salva nel database
+                        # Save to database
                         save_container_stats(container.short_id, container.name, current_stats)
                         print(f"  ✅ {container.name}: CPU={cpu_percent:.1f}% RAM={mem_percent:.1f}% NET_IN={rates['net_input_mb_s']:.2f}MB/s")
                         
                     except Exception as e:
-                        print(f"  ❌ Errore raccolta stats per {container.name}: {e}")
+                        print(f"  ❌ Error collecting stats for {container.name}: {e}")
                 
-                # Pulizia database ogni ciclo
+                # Database cleanup every cycle
                 cleanup_old_stats()
-                print("✅ Ciclo di raccolta completato\n")
+                print("✅ Collection cycle completed\n")
                 
             except Exception as e:
-                print(f"❌ Errore generale raccolta stats: {e}")
+                print(f"❌ General error collecting stats: {e}")
         
-        time.sleep(60)  # Ogni minuto
+        time.sleep(60)  # Every minute
 
 
-# Flag per evitare avvii multipli del thread
+# Flag to avoid multiple thread starts
 stats_thread_started = False
 
-# Avvia thread per raccolta statistiche in background SOLO UNA VOLTA
+# Start thread for background statistics collection ONLY ONCE
 if not stats_thread_started:
     stats_thread = threading.Thread(target=collect_stats_background, daemon=True)
     stats_thread.start()
     stats_thread_started = True
-    print("✅ Thread di raccolta statistiche avviato all'inizializzazione")
+    print("✅ Statistics collection thread started at initialization")
 
 
 if __name__ == '__main__':
     
-    # Determina host e porta da environment variables
+    # Determine host and port from environment variables
     host = os.getenv('FLASK_HOST', '0.0.0.0')
     port = int(os.getenv('FLASK_PORT', 5001))
     debug = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
@@ -1111,5 +1094,5 @@ if __name__ == '__main__':
         debug=debug,
         host=host,
         port=port,
-        use_reloader=False  # IMPORTANTE: evita doppio thread
+        use_reloader=False  # IMPORTANT: avoid double thread
     )

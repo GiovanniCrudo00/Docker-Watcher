@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -14,7 +14,7 @@
 <body>
     <div class="container">
         <div class="back-button" onclick="window.location.href='/networks-volumes'">
-            ← Torna a Networks & Volumes
+            ← Back to Networks & Volumes
         </div>
 
         <header>
@@ -74,10 +74,10 @@
                 </div>
             </div>
             
-            <!-- Canvas per il grafico -->
+            <!-- Canvas for the graph -->
             <div id="network-graph"></div>
             
-            <!-- Legenda -->
+            <!-- Legend -->
             <div class="legend">
                 <div class="legend-item">
                     <div class="legend-icon network-icon"></div>
@@ -98,17 +98,17 @@
             </div>
         </div>
 
-        <!-- Info Panel (mostra dettagli quando clicchi un nodo) -->
+        <!-- Info Panel (shows details when you click a node) -->
         <div id="info-panel" class="info-panel hidden">
             <div class="info-panel-header">
                 <h3 id="info-title">Node Info</h3>
                 <button class="close-btn" onclick="closeInfoPanel()">✕</button>
             </div>
             <div id="info-content" class="info-panel-content">
-                <!-- Sarà popolato dinamicamente -->
+                <!-- Will be populated dynamically -->
             </div>
             <div class="info-panel-actions" id="info-actions">
-                <!-- Sarà popolato dinamicamente -->
+                <!-- Will be populated dynamically -->
             </div>
         </div>
     </div>

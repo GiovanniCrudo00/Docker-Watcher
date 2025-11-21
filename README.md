@@ -66,7 +66,7 @@ pip3 install -r requirements.txt
 python3 app.py 
 ```
 
-6. Open your browser and navigate to http://localhost:5000
+6. Open your browser and navigate to http://localhost:5001
 
 ----------------------------------------
 #### Database Utilities

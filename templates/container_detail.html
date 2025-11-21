@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,7 +12,7 @@
 <body>
     <div class="container">
         <div class="back-button" onclick="window.location.href='/'">
-            ← Torna alla Dashboard
+            ← Back to Dashboard
         </div>
 
         <header>
@@ -20,15 +20,15 @@
                 <img src="https://www.docker.com/wp-content/uploads/2022/03/Moby-logo.png" alt="Docker Logo" class="docker-logo">
                 <div class="header-text">
                     <h1>{{ container.name }}</h1>
-                    <p class="subtitle">Monitoraggio Container</p>
+                    <p class="subtitle">Container Monitoring</p>
                 </div>
             </div>
         </header>
 
-        <!-- Info Container -->
+        <!-- Container Info -->
         <div class="info-section">
             <div class="info-card">
-                <h3>📦 Immagine</h3>
+                <h3>📦 Image</h3>
                 <p>{{ container.image }}</p>
             </div>
             <div class="info-card">
@@ -42,18 +42,18 @@
                 </div>
             </div>
             <div class="info-card">
-                <h3>📅 Creato</h3>
+                <h3>📅 Created</h3>
                 <p>{{ container.created }}</p>
             </div>
         </div>
 
-        <!-- Statistiche in Tempo Reale -->
+        <!-- Real-Time Statistics -->
         <div class="stats-realtime">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h2 style="margin: 0;">📈 Statistiche in Tempo Reale</h2>
+                <h2 style="margin: 0;">📈 Real-Time Statistics</h2>
                 <div id="sync-indicator" class="sync-indicator">
                     <span class="pulse-dot"></span>
-                    <span id="last-update">Caricamento...</span>
+                    <span id="last-update">Loading...</span>
                 </div>
             </div>
             <div class="stats-grid">
@@ -91,9 +91,9 @@
             </div>
         </div>
 
-        <!-- Grafici Storici -->
+        <!-- Historical Charts -->
         <div class="charts-section">
-            <h2>📊 Storico Ultimi 7 Giorni</h2>
+            <h2>📊 Last 7 Days History</h2>
             
             <div class="chart-container">
                 <h3>CPU Usage (%)</h3>
@@ -116,32 +116,32 @@
             </div>
         </div>
 
-        <!-- Log Container -->
+        <!-- Container Logs -->
         <div class="logs-section">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                <h2 style="margin: 0;">📄 Log in Tempo Reale (Ultimi 100)</h2>
+                <h2 style="margin: 0;">📄 Real-Time Logs (Last 100)</h2>
                 <div class="logs-info">
-                    <span id="log-count" style="color: #94a3b8; font-size: 0.9em;">0 log caricati</span>
+                    <span id="log-count" style="color: #94a3b8; font-size: 0.9em;">0 logs loaded</span>
                     <span style="color: #64748b; margin: 0 10px;">•</span>
-                    <span id="log-visible-count" style="color: #3b82f6; font-size: 0.9em;">0 visibili</span>
+                    <span id="log-visible-count" style="color: #3b82f6; font-size: 0.9em;">0 visible</span>
                     <span style="color: #64748b; margin: 0 10px;">•</span>
-                    <span id="log-last-update" style="color: #64748b; font-size: 0.85em;">Mai aggiornato</span>
+                    <span id="log-last-update" style="color: #64748b; font-size: 0.85em;">Never updated</span>
                 </div>
             </div>
             
-            <!-- Barra di Ricerca -->
+            <!-- Search Bar -->
             <div style="margin-bottom: 15px;">
                 <input 
                     type="text" 
                     id="log-search" 
                     class="log-search-box" 
-                    placeholder="🔍 Cerca nei log..."
+                    placeholder="🔍 Search in logs..."
                 >
-                <button id="clear-search" class="clear-search-btn" style="display: none;">✕ Cancella</button>
+                <button id="clear-search" class="clear-search-btn" style="display: none;">✕ Clear</button>
             </div>
             
             <div class="logs-container" id="logs-container">
-                <p style="color: #94a3b8;">Caricamento log...</p>
+                <p style="color: #94a3b8;">Loading logs...</p>
             </div>
         </div>
     </div>

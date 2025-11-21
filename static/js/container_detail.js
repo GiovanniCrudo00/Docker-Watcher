@@ -5,7 +5,7 @@
 let cpuChart, memoryChart, networkChart, diskChart;
 let lastKnownUpdate = null;
 
-// Configurazione comune per i grafici
+// Common configuration for charts
 const chartConfig = {
     responsive: true,
     maintainAspectRatio: true,
@@ -21,7 +21,7 @@ const chartConfig = {
             intersect: false,
             callbacks: {
                 title: function(tooltipItems) {
-                    // Mostra il timestamp completo nel tooltip
+                    // Show full timestamp in tooltip
                     return tooltipItems[0].label;
                 }
             }
@@ -29,9 +29,9 @@ const chartConfig = {
     },
     scales: {
         x: {
-            display: false,  // Nasconde completamente l'asse X e i suoi label
+            display: false,  // Completely hide X axis and its labels
             grid: { 
-                display: false  // Nasconde anche la griglia verticale
+                display: false  // Also hide vertical grid
             }
         },
         y: {
@@ -42,7 +42,7 @@ const chartConfig = {
 };
 
 /**
- * Inizializza i grafici
+ * Initialize charts
  */
 function initCharts() {
     // CPU Chart
@@ -139,7 +139,7 @@ function initCharts() {
 }
 
 /**
- * Carica lo storico delle statistiche
+ * Load statistics history
  */
 async function loadStatsHistory() {
     try {
@@ -147,11 +147,11 @@ async function loadStatsHistory() {
         const history = await response.json();
 
         if (history.length === 0) {
-            console.log('Nessuno storico disponibile ancora');
+            console.log('No history available yet');
             return;
         }
 
-        // Prepara i dati per i grafici
+        // Prepare data for charts
         const labels = [];
         const cpuData = [];
         const memData = [];
@@ -160,15 +160,15 @@ async function loadStatsHistory() {
         const diskReadData = [];
         const diskWriteData = [];
 
-        // Non facciamo più il campionamento - usiamo TUTTI i dati
-        // Rimuoviamo questa riga: const step = Math.ceil(history.length / 100);
+        // No longer sampling - use ALL data
+        // Removed this line: const step = Math.ceil(history.length / 100);
         
         for (let i = 0; i < history.length; i++) {
             const stat = history[i];
             const date = new Date(stat.timestamp);
             
-            // Formatta timestamp completo per il tooltip
-            const fullTimestamp = date.toLocaleString('it-IT', { 
+            // Format full timestamp for tooltip
+            const fullTimestamp = date.toLocaleString('en-US', { 
                 year: 'numeric',
                 month: 'short', 
                 day: 'numeric', 
@@ -187,7 +187,7 @@ async function loadStatsHistory() {
             diskWriteData.push(stat.disk_write_mb);
         }
 
-        // Aggiorna i grafici
+        // Update charts
         cpuChart.data.labels = labels;
         cpuChart.data.datasets[0].data = cpuData;
         cpuChart.update();
@@ -206,39 +206,39 @@ async function loadStatsHistory() {
         diskChart.data.datasets[1].data = diskWriteData;
         diskChart.update();
 
-        console.log('✅ Storico caricato:', history.length, 'punti');
+        console.log('✅ History loaded:', history.length, 'points');
     } catch (error) {
-        console.error('❌ Errore caricamento storico:', error);
+        console.error('❌ Error loading history:', error);
     }
 }
 
 /**
- * Aggiorna le statistiche in tempo reale
+ * Update real-time statistics
  */
 async function updateRealtimeStats() {
     const syncIndicator = document.getElementById('sync-indicator');
     const lastUpdateSpan = document.getElementById('last-update');
     
     try {
-        // Mostra stato di sincronizzazione
+        // Show synchronization status
         syncIndicator.classList.add('syncing');
         
         const response = await fetch(`/api/container/${containerId}/stats`);
         const stats = await response.json();
 
         if (stats.error) {
-            console.error('Errore:', stats.error);
-            lastUpdateSpan.textContent = 'Errore aggiornamento';
+            console.error('Error:', stats.error);
+            lastUpdateSpan.textContent = 'Update error';
             syncIndicator.classList.remove('syncing');
             return;
         }
 
-        // Aggiorna valori in tempo reale
+        // Update real-time values
         document.getElementById('cpu-value').textContent = stats.cpu_percent + '%';
         document.getElementById('cpu-progress').style.width = Math.min(stats.cpu_percent, 100) + '%';
         
         document.getElementById('ram-value').textContent = stats.mem_usage_mb.toFixed(2) + ' MB';
-        document.getElementById('ram-percent').textContent = stats.mem_percent.toFixed(2) + '% di ' + stats.mem_limit_mb.toFixed(2) + ' MB';
+        document.getElementById('ram-percent').textContent = stats.mem_percent.toFixed(2) + '% of ' + stats.mem_limit_mb.toFixed(2) + ' MB';
         document.getElementById('ram-progress').style.width = Math.min(stats.mem_percent, 100) + '%';
         
         document.getElementById('net-in-value').textContent = stats.net_input_mb.toFixed(2) + ' MB/s';
@@ -246,7 +246,7 @@ async function updateRealtimeStats() {
         document.getElementById('disk-read-value').textContent = stats.disk_read_mb.toFixed(2) + ' MB/s';
         document.getElementById('disk-write-value').textContent = stats.disk_write_mb.toFixed(2) + ' MB/s';
 
-        // Cambia colore della progress bar se CPU > 80%
+        // Change progress bar color if CPU > 80%
         const cpuProgress = document.getElementById('cpu-progress');
         if (stats.cpu_percent > 80) {
             cpuProgress.style.background = 'linear-gradient(90deg, #ef4444, #dc2626)';
@@ -254,7 +254,7 @@ async function updateRealtimeStats() {
             cpuProgress.style.background = 'linear-gradient(90deg, #3b82f6, #2563eb)';
         }
 
-        // Cambia colore della progress bar se RAM > 80%
+        // Change progress bar color if RAM > 80%
         const ramProgress = document.getElementById('ram-progress');
         if (stats.mem_percent > 80) {
             ramProgress.style.background = 'linear-gradient(90deg, #ef4444, #dc2626)';
@@ -262,20 +262,20 @@ async function updateRealtimeStats() {
             ramProgress.style.background = 'linear-gradient(90deg, #3b82f6, #2563eb)';
         }
 
-        // Aggiorna timestamp
+        // Update timestamp
         const now = new Date();
-        lastUpdateSpan.textContent = `Aggiornato: ${now.toLocaleTimeString('it-IT')}`;
+        lastUpdateSpan.textContent = `Updated: ${now.toLocaleTimeString('en-US')}`;
         syncIndicator.classList.remove('syncing');
 
     } catch (error) {
-        console.error('❌ Errore aggiornamento stats:', error);
-        lastUpdateSpan.textContent = 'Errore connessione';
+        console.error('❌ Error updating stats:', error);
+        lastUpdateSpan.textContent = 'Connection error';
         syncIndicator.classList.remove('syncing');
     }
 }
 
 /**
- * Evidenzia il testo di ricerca nel log
+ * Highlight search text in log
  */
 function highlightSearchText(text, searchTerm) {
     if (!searchTerm) return text;
@@ -285,7 +285,7 @@ function highlightSearchText(text, searchTerm) {
 }
 
 /**
- * Funzione di ricerca nei log
+ * Log search function
  */
 function setupLogSearch() {
     const searchInput = document.getElementById('log-search');
@@ -297,7 +297,7 @@ function setupLogSearch() {
         const logLines = logsContainer.querySelectorAll('.log-line');
         let visibleCount = 0;
         
-        // Mostra/nascondi bottone cancella
+        // Show/hide clear button
         if (searchTerm) {
             clearButton.style.display = 'inline-block';
         } else {
@@ -308,22 +308,22 @@ function setupLogSearch() {
             const logText = line.getAttribute('data-original-text') || line.textContent;
             
             if (!searchTerm) {
-                // Se non c'è ricerca, mostra tutto senza highlight
+                // If no search, show everything without highlight
                 line.classList.remove('hidden', 'highlight');
                 line.innerHTML = logText;
                 visibleCount++;
             } else {
-                // Cerca nel testo
+                // Search in text
                 if (logText.toLowerCase().includes(searchTerm)) {
                     line.classList.remove('hidden');
                     line.classList.add('highlight');
                     
-                    // Salva il testo originale se non esiste
+                    // Save original text if doesn't exist
                     if (!line.getAttribute('data-original-text')) {
                         line.setAttribute('data-original-text', logText);
                     }
                     
-                    // Evidenzia il termine cercato
+                    // Highlight search term
                     line.innerHTML = highlightSearchText(logText, searchTerm);
                     visibleCount++;
                 } else {
@@ -333,10 +333,10 @@ function setupLogSearch() {
             }
         });
         
-        // Aggiorna contatore log visibili
-        document.getElementById('log-visible-count').textContent = `${visibleCount} visibili`;
+        // Update visible log counter
+        document.getElementById('log-visible-count').textContent = `${visibleCount} visible`;
         
-        // Scroll automatico al primo risultato se c'è una ricerca
+        // Auto-scroll to first result if there's a search
         if (searchTerm && visibleCount > 0) {
             const firstVisible = logsContainer.querySelector('.log-line:not(.hidden)');
             if (firstVisible) {
@@ -345,7 +345,7 @@ function setupLogSearch() {
         }
     });
     
-    // Bottone per cancellare la ricerca
+    // Button to clear search
     clearButton.addEventListener('click', function() {
         searchInput.value = '';
         searchInput.dispatchEvent(new Event('input'));
@@ -354,7 +354,7 @@ function setupLogSearch() {
 }
 
 /**
- * Aggiorna i log del container
+ * Update container logs
  */
 async function updateLogs() {
     try {
@@ -363,37 +363,37 @@ async function updateLogs() {
 
         if (data.error) {
             document.getElementById('logs-container').innerHTML = 
-                `<p style="color: #ef4444;">Errore: ${data.error}</p>`;
+                `<p style="color: #ef4444;">Error: ${data.error}</p>`;
             return;
         }
 
         const logsContainer = document.getElementById('logs-container');
         
-        // Salva il termine di ricerca corrente
+        // Save current search term
         const searchInput = document.getElementById('log-search');
         const currentSearch = searchInput ? searchInput.value : '';
         
         logsContainer.innerHTML = '';
 
         if (data.logs.length === 0) {
-            logsContainer.innerHTML = '<p style="color: #94a3b8;">Nessun log disponibile</p>';
-            document.getElementById('log-count').textContent = '0 log caricati';
-            document.getElementById('log-visible-count').textContent = '0 visibili';
+            logsContainer.innerHTML = '<p style="color: #94a3b8;">No logs available</p>';
+            document.getElementById('log-count').textContent = '0 logs loaded';
+            document.getElementById('log-visible-count').textContent = '0 visible';
             return;
         }
 
-        // Aggiorna il contatore dei log
-        document.getElementById('log-count').textContent = `${data.logs.length} log caricati`;
+        // Update log counter
+        document.getElementById('log-count').textContent = `${data.logs.length} logs loaded`;
         
-        // Aggiorna il timestamp dell'ultimo aggiornamento
+        // Update last update timestamp
         const now = new Date();
-        document.getElementById('log-last-update').textContent = `Aggiornato: ${now.toLocaleTimeString('it-IT')}`;
+        document.getElementById('log-last-update').textContent = `Updated: ${now.toLocaleTimeString('en-US')}`;
 
         data.logs.forEach(log => {
             const logLine = document.createElement('div');
             logLine.className = 'log-line';
             
-            // Formatta il log con timestamp in evidenza
+            // Format log with highlighted timestamp
             const parts = log.split(' ');
             let logText;
             if (parts.length > 0) {
@@ -406,64 +406,64 @@ async function updateLogs() {
                 logLine.textContent = log;
             }
             
-            // Salva il testo originale per la ricerca
+            // Save original text for search
             logLine.setAttribute('data-original-text', logText);
             
             logsContainer.appendChild(logLine);
         });
 
-        // Riapplica la ricerca se era attiva
+        // Re-apply search if it was active
         if (currentSearch) {
             searchInput.value = currentSearch;
             searchInput.dispatchEvent(new Event('input'));
         } else {
-            document.getElementById('log-visible-count').textContent = `${data.logs.length} visibili`;
+            document.getElementById('log-visible-count').textContent = `${data.logs.length} visible`;
         }
 
-        // Auto-scroll in fondo solo se non c'è ricerca attiva
+        // Auto-scroll to bottom only if no active search
         if (!currentSearch) {
             logsContainer.scrollTop = logsContainer.scrollHeight;
         }
 
-        console.log(`✅ ${data.logs.length} log aggiornati`);
+        console.log(`✅ ${data.logs.length} logs updated`);
 
     } catch (error) {
-        console.error('❌ Errore aggiornamento log:', error);
+        console.error('❌ Error updating logs:', error);
     }
 }
 
 /**
- * Inizializzazione
+ * Initialization
  */
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🐳 Container Detail inizializzato per:', containerId);
+    console.log('🐳 Container Detail initialized for:', containerId);
     
-    // Inizializza grafici
+    // Initialize charts
     initCharts();
     
-    // Carica storico
+    // Load history
     loadStatsHistory();
     
-    // Prima lettura stats e log
+    // First read stats and logs
     updateRealtimeStats();
     updateLogs();
     
-    // Setup ricerca log
+    // Setup log search
     setupLogSearch();
     
-    // Aggiornamento automatico
-    setInterval(updateRealtimeStats, 10000);   // Stats ogni 10 secondi (frequente per real-time)
-    setInterval(updateLogs, 60000);             // Log ogni 60 secondi (1 minuto)
-    setInterval(loadStatsHistory, 60000);       // Storico ogni 60 secondi (quando ci sono nuovi dati dal backend)
+    // Automatic update
+    setInterval(updateRealtimeStats, 10000);   // Stats every 10 seconds (frequent for real-time)
+    setInterval(updateLogs, 60000);             // Logs every 60 seconds (1 minute)
+    setInterval(loadStatsHistory, 60000);       // History every 60 seconds (when there's new data from backend)
     
-    console.log('✅ Auto-refresh attivo:');
-    console.log('   📊 Stats real-time: ogni 10 secondi');
-    console.log('   📄 Log: ogni 60 secondi (1 minuto)');
-    console.log('   📈 Grafici storici: ogni 60 secondi');
+    console.log('✅ Auto-refresh active:');
+    console.log('   📊 Real-time stats: every 10 seconds');
+    console.log('   📄 Logs: every 60 seconds (1 minute)');
+    console.log('   📈 Historical charts: every 60 seconds');
 
     document.addEventListener('visibilitychange', function() {
         if (document.visibilityState === 'visible') {
-            console.log('🔌 Pagina visibile di nuovo, aggiornamento dati...');
+            console.log('🔌 Page visible again, updating data...');
             updateRealtimeStats();
             updateLogs();
             loadStatsHistory();

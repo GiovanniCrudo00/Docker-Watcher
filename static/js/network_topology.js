@@ -1,21 +1,16 @@
-/**
- * Network Topology Visualization
- * Uses Vis.js Network library
- */
-
 let network = null;
 let nodes = null;
 let edges = null;
 let physicsEnabled = true;
 
 /**
- * Inizializza il grafico della rete
+ * Initialize graph of the network
  */
 async function initNetwork() {
     try {
         console.log(`🌐 Loading topology for network: ${networkId}`);
         
-        // Fetch dati dalla API
+        // Fetch API data
         const response = await fetch(`/api/network/${networkId}/topology`);
         const data = await response.json();
         
@@ -26,20 +21,20 @@ async function initNetwork() {
         
         console.log(`✅ Loaded ${data.nodes.length} nodes and ${data.edges.length} edges`);
         
-        // Crea DataSets
+        // Create DataSets
         nodes = new vis.DataSet(data.nodes);
         edges = new vis.DataSet(data.edges);
         
         // Container
         const container = document.getElementById('network-graph');
         
-        // Dati
+        // Data
         const graphData = {
             nodes: nodes,
             edges: edges
         };
         
-        // Opzioni
+        // Options
         const options = {
             nodes: {
                 borderWidth: 2,
@@ -97,7 +92,7 @@ async function initNetwork() {
             }
         };
         
-        // Crea network
+        // Create graph for network
         network = new vis.Network(container, graphData, options);
         
         // Event listeners
@@ -115,7 +110,7 @@ async function initNetwork() {
                 const nodeId = params.nodes[0];
                 const node = nodes.get(nodeId);
                 
-                // Se è un container, apri la pagina di dettaglio
+                // if container, open details
                 if (node.type === 'container') {
                     window.location.href = `/container/${node.info.id}`;
                 }
@@ -134,7 +129,7 @@ async function initNetwork() {
             console.log('✅ Network stabilization complete');
         });
         
-        // Fit dopo stabilizzazione
+        // Fit after stabilization
         setTimeout(() => {
             network.fit({
                 animation: {
@@ -150,7 +145,7 @@ async function initNetwork() {
 }
 
 /**
- * Mostra informazioni di un nodo
+ * Show node informations
  */
 function showNodeInfo(nodeId) {
     const node = nodes.get(nodeId);
@@ -161,10 +156,10 @@ function showNodeInfo(nodeId) {
     
     if (!node) return;
     
-    // Titolo
+    // title
     infoTitle.textContent = node.label;
     
-    // Contenuto
+    // content
     let html = '';
     
     if (node.type === 'network') {
@@ -234,14 +229,14 @@ function showNodeInfo(nodeId) {
 }
 
 /**
- * Chiudi info panel
+ * Close info panel
  */
 function closeInfoPanel() {
     document.getElementById('info-panel').classList.add('hidden');
 }
 
 /**
- * Fit network alla view
+ * Fit network to view
  */
 function fitNetwork() {
     if (network) {

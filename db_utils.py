@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Utility per gestire il database SQLite di Docker Watcher
+Utility for DB interactions of Docker Watcher
 """
 
 import sqlite3
@@ -11,45 +11,45 @@ DB_PATH = os.path.join(os.path.dirname(__file__), 'docker_stats.db')
 
 
 def get_db_stats():
-    """Mostra statistiche generali del database"""
+    """Get stats from Db table"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
-    # Conta totale record
+    # Count total records
     cursor.execute('SELECT COUNT(*) FROM container_stats')
     total_records = cursor.fetchone()[0]
     
-    # Conta container unici
+    # Count unique containers
     cursor.execute('SELECT COUNT(DISTINCT container_id) FROM container_stats')
     unique_containers = cursor.fetchone()[0]
     
-    # Record più vecchio
+    # Oldest Record
     cursor.execute('SELECT MIN(timestamp) FROM container_stats')
     oldest_record = cursor.fetchone()[0]
     
-    # Record più recente
+    # Latest rescord
     cursor.execute('SELECT MAX(timestamp) FROM container_stats')
     newest_record = cursor.fetchone()[0]
     
-    # Dimensione del database
+    # DB dimension
     db_size = os.path.getsize(DB_PATH) / (1024 * 1024)  # MB
     
     conn.close()
     
     print("=" * 60)
-    print("📊 STATISTICHE DATABASE DOCKER WATCHER")
+    print("📊 DB STAT FOR DOCKER WATCHER")
     print("=" * 60)
     print(f"📁 Path: {DB_PATH}")
-    print(f"💾 Dimensione: {db_size:.2f} MB")
-    print(f"📈 Totale record: {total_records:,}")
-    print(f"🐳 Container unici: {unique_containers}")
-    print(f"📅 Record più vecchio: {oldest_record}")
-    print(f"📅 Record più recente: {newest_record}")
+    print(f"💾 Dimension: {db_size:.2f} MB")
+    print(f"📈 Total number of records: {total_records:,}")
+    print(f"🐳 Unique Containers: {unique_containers}")
+    print(f"📅 oldest record: {oldest_record}")
+    print(f"📅 Latest record: {newest_record}")
     print("=" * 60)
 
 
 def list_containers():
-    """Lista tutti i container tracciati"""
+    """List all traced containers"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
@@ -66,9 +66,9 @@ def list_containers():
     containers = cursor.fetchall()
     conn.close()
     
-    print("\n🐳 CONTAINER TRACCIATI")
+    print("\n🐳 TRACKED CONTAINER")
     print("-" * 80)
-    print(f"{'ID':<15} {'Nome':<25} {'Record':<10} {'Primo':<20} {'Ultimo':<20}")
+    print(f"{'ID':<15} {'Name':<25} {'Record':<10} {'First':<20} {'Latest':<20}")
     print("-" * 80)
     
     for cont in containers:
@@ -78,40 +78,40 @@ def list_containers():
 
 
 def cleanup_old_data(days=7):
-    """Rimuove dati più vecchi di N giorni"""
+    """Remove containers older than N"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
     limit_date = (datetime.now() - timedelta(days=days)).isoformat()
     
-    # Conta quanti record verranno eliminati
+    # Count removed records
     cursor.execute('SELECT COUNT(*) FROM container_stats WHERE timestamp < ?', (limit_date,))
     count_to_delete = cursor.fetchone()[0]
     
     if count_to_delete == 0:
-        print(f"✅ Nessun record più vecchio di {days} giorni trovato")
+        print(f"✅ No records olfer than {days} days found")
         conn.close()
         return
     
-    print(f"⚠️  Verranno eliminati {count_to_delete:,} record più vecchi di {days} giorni")
-    confirm = input("Confermi l'eliminazione? (s/n): ")
+    print(f"⚠️  Will be removed {count_to_delete:,} records older than {days} days")
+    confirm = input("Confirm removal? (y/n): ")
     
-    if confirm.lower() == 's':
+    if confirm.lower() == 'y':
         cursor.execute('DELETE FROM container_stats WHERE timestamp < ?', (limit_date,))
         conn.commit()
-        print(f"✅ Eliminati {cursor.rowcount:,} record")
+        print(f"✅ Removed {cursor.rowcount:,} records")
         
         # Ottimizza il database
         cursor.execute('VACUUM')
-        print("✅ Database ottimizzato")
+        print("✅ Optimized DB")
     else:
-        print("❌ Operazione annullata")
+        print("❌ Aborted operation")
     
     conn.close()
 
 
 def export_container_data(container_id, output_file='export.csv'):
-    """Esporta i dati di un container in CSV"""
+    """Export data in CSV format"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
@@ -127,7 +127,7 @@ def export_container_data(container_id, output_file='export.csv'):
     conn.close()
     
     if not rows:
-        print(f"❌ Nessun dato trovato per container {container_id}")
+        print(f"❌No record found for container {container_id}")
         return
     
     with open(output_file, 'w') as f:
@@ -138,11 +138,11 @@ def export_container_data(container_id, output_file='export.csv'):
         for row in rows:
             f.write(','.join(map(str, row)) + '\n')
     
-    print(f"✅ Esportati {len(rows):,} record in {output_file}")
+    print(f"✅ Exported {len(rows):,} records in {output_file}")
 
 
 def vacuum_database():
-    """Ottimizza e compatta il database"""
+    """Optimize and reduce Db dimension"""
     conn = sqlite3.connect(DB_PATH)
     
     # Dimensione prima
@@ -157,23 +157,23 @@ def vacuum_database():
     size_after = os.path.getsize(DB_PATH) / (1024 * 1024)
     saved = size_before - size_after
     
-    print(f"✅ Database ottimizzato")
-    print(f"📊 Prima: {size_before:.2f} MB")
-    print(f"📊 Dopo: {size_after:.2f} MB")
-    print(f"💾 Spazio recuperato: {saved:.2f} MB")
+    print(f"✅ Optimized Database")
+    print(f"📊 Before: {size_before:.2f} MB")
+    print(f"📊 After: {size_after:.2f} MB")
+    print(f"💾 Saved space: {saved:.2f} MB")
 
 
 if __name__ == '__main__':
     import sys
     
     if len(sys.argv) < 2:
-        print("Uso: python db_utils.py [comando]")
-        print("\nComandi disponibili:")
-        print("  stats              - Mostra statistiche database")
-        print("  list               - Lista container tracciati")
-        print("  cleanup [giorni]   - Rimuovi dati più vecchi di N giorni (default: 7)")
-        print("  export <id>        - Esporta dati container in CSV")
-        print("  vacuum             - Ottimizza database")
+        print("Usage: python db_utils.py [command]")
+        print("\nAvailable commands:")
+        print("  stats              - show db stats")
+        print("  list               - list all traced containers")
+        print("  cleanup [days]   - remove infos older than N days (default: 7)")
+        print("  export <id>        - Export container data in CSV format")
+        print("  vacuum             - Optimize DB")
         sys.exit(1)
     
     command = sys.argv[1]
@@ -187,7 +187,7 @@ if __name__ == '__main__':
         cleanup_old_data(days)
     elif command == 'export':
         if len(sys.argv) < 3:
-            print("❌ Specifica l'ID del container")
+            print("❌ Specify container ID")
             sys.exit(1)
         container_id = sys.argv[2]
         output = sys.argv[3] if len(sys.argv) > 3 else f'export_{container_id}.csv'
@@ -195,5 +195,5 @@ if __name__ == '__main__':
     elif command == 'vacuum':
         vacuum_database()
     else:
-        print(f"❌ Comando sconosciuto: {command}")
+        print(f"❌ Unkown command: {command}")
         sys.exit(1)

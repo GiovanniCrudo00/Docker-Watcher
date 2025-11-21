@@ -2,36 +2,36 @@
  * Networks & Volumes Page - JavaScript
  */
 
-// Variabile per tracciare tab corrente
+// Variable to track current tab
 let currentTab = 'networks';
 
 /**
- * Mostra tab specifica
+ * Show specific tab
  */
 function showTab(tabName) {
     currentTab = tabName;
     
-    // Nascondi tutte le tab
+    // Hide all tabs
     document.querySelectorAll('.tab-content').forEach(tab => {
         tab.classList.remove('active');
     });
     
-    // Rimuovi active da tutti i bottoni
+    // Remove active from all buttons
     document.querySelectorAll('.nav-btn').forEach(btn => {
         btn.classList.remove('active');
     });
     
-    // Mostra tab selezionata
+    // Show selected tab
     document.getElementById(tabName).classList.add('active');
     
-    // Aggiungi active al bottone cliccato
+    // Add active to clicked button
     event.target.classList.add('active');
     
     console.log(`📑 Switched to ${tabName} tab`);
 }
 
 /**
- * Setup ricerca networks
+ * Setup networks search
  */
 function setupNetworksSearch() {
     const searchInput = document.getElementById('search-networks');
@@ -54,12 +54,12 @@ function setupNetworksSearch() {
             }
         });
         
-        console.log(`🔍 Networks search: "${searchTerm}" - ${visibleCount} risultati`);
+        console.log(`🔍 Networks search: "${searchTerm}" - ${visibleCount} results`);
     });
 }
 
 /**
- * Setup ricerca volumes
+ * Setup volumes search
  */
 function setupVolumesSearch() {
     const searchInput = document.getElementById('search-volumes');
@@ -82,56 +82,56 @@ function setupVolumesSearch() {
             }
         });
         
-        console.log(`🔍 Volumes search: "${searchTerm}" - ${visibleCount} risultati`);
+        console.log(`🔍 Volumes search: "${searchTerm}" - ${visibleCount} results`);
     });
 }
 
 /**
- * Aggiorna dati networks
+ * Update networks data
  */
 async function updateNetworks() {
     try {
         const response = await fetch('/api/networks');
         const networks = await response.json();
         
-        console.log(`✅ Networks aggiornate: ${networks.length} networks`);
+        console.log(`✅ Networks updated: ${networks.length} networks`);
         
-        // TODO: Aggiornare dinamicamente la UI se necessario
-        // Per ora facciamo un refresh completo
+        // TODO: Update UI dynamically if needed
+        // For now we do a full refresh
         
     } catch (error) {
-        console.error('❌ Errore aggiornamento networks:', error);
+        console.error('❌ Error updating networks:', error);
     }
 }
 
 /**
- * Aggiorna dati volumes
+ * Update volumes data
  */
 async function updateVolumes() {
     try {
         const response = await fetch('/api/volumes');
         const volumes = await response.json();
         
-        console.log(`✅ Volumes aggiornati: ${volumes.length} volumes`);
+        console.log(`✅ Volumes updated: ${volumes.length} volumes`);
         
-        // TODO: Aggiornare dinamicamente la UI se necessario
+        // TODO: Update UI dynamically if needed
         
     } catch (error) {
-        console.error('❌ Errore aggiornamento volumes:', error);
+        console.error('❌ Error updating volumes:', error);
     }
 }
 
 /**
- * Inizializzazione
+ * Initialization
  */
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🌐 Networks & Volumes page inizializzata');
+    console.log('🌐 Networks & Volumes page initialized');
     
-    // Setup ricerca
+    // Setup search
     setupNetworksSearch();
     setupVolumesSearch();
     
-    // Aggiornamento automatico ogni 30 secondi
+    // Auto-refresh every 30 seconds
     setInterval(() => {
         if (currentTab === 'networks') {
             updateNetworks();
@@ -140,5 +140,5 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }, 30000);
     
-    console.log('✅ Auto-refresh attivo (ogni 30 secondi)');
+    console.log('✅ Auto-refresh active (every 30 seconds)');
 });

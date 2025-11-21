@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,7 +11,7 @@
 <body>
     <div class="container">
         <div class="back-button" onclick="window.location.href='/'">
-            ← Torna alla Dashboard
+            ← Back to Dashboard
         </div>
 
         <header>
@@ -35,13 +35,13 @@
             <div class="section-header">
                 <h2>🌐 Docker Networks</h2>
                 <div class="section-stats">
-                    <span class="stat-badge">{{ networks|length }} Networks Totali</span>
-                    <span class="stat-badge">{{ networks|selectattr('container_count', 'gt', 0)|list|length }} In Uso</span>
+                    <span class="stat-badge">{{ networks|length }} Total Networks</span>
+                    <span class="stat-badge">{{ networks|selectattr('container_count', 'gt', 0)|list|length }} In Use</span>
                 </div>
             </div>
 
             <div class="search-bar">
-                <input type="text" id="search-networks" class="search-box" placeholder="🔍 Cerca network...">
+                <input type="text" id="search-networks" class="search-box" placeholder="🔍 Search network...">
             </div>
 
             <div class="networks-grid" id="networks-list">
@@ -83,7 +83,7 @@
 
                         {% if network.containers %}
                         <div class="connected-containers">
-                            <h4>📦 Container Connessi</h4>
+                            <h4>📦 Connected Containers</h4>
                             <div class="container-list">
                                 {% for container in network.containers %}
                                 <div class="connected-container" onclick="window.location.href='/container/{{ container.id }}'">
@@ -107,14 +107,14 @@
                         </div>
                         {% else %}
                         <div class="no-containers">
-                            <span>📭 Nessun container connesso</span>
+                            <span>📭 No containers connected</span>
                         </div>
                         {% endif %}
                     </div>
                     {% endfor %}
                 {% else %}
                     <div class="empty-state">
-                        <p>📭 Nessuna network trovata</p>
+                        <p>📭 No networks found</p>
                     </div>
                 {% endif %}
             </div>
@@ -125,13 +125,13 @@
             <div class="section-header">
                 <h2>💾 Docker Volumes</h2>
                 <div class="section-stats">
-                    <span class="stat-badge">{{ volumes|length }} Volumes Totali</span>
-                    <span class="stat-badge">{{ volumes|selectattr('in_use')|list|length }} In Uso</span>
+                    <span class="stat-badge">{{ volumes|length }} Total Volumes</span>
+                    <span class="stat-badge">{{ volumes|selectattr('in_use')|list|length }} In Use</span>
                 </div>
             </div>
 
             <div class="search-bar">
-                <input type="text" id="search-volumes" class="search-box" placeholder="🔍 Cerca volume...">
+                <input type="text" id="search-volumes" class="search-box" placeholder="🔍 Search volume...">
             </div>
 
             <div class="volumes-list" id="volumes-list">
@@ -152,9 +152,9 @@
                                     <span class="badge driver-badge">{{ volume.driver }}</span>
                                     <span class="badge scope-badge">{{ volume.scope }}</span>
                                     {% if volume.in_use %}
-                                    <span class="badge in-use-badge">✅ In Uso</span>
+                                    <span class="badge in-use-badge">✅ In Use</span>
                                     {% else %}
-                                    <span class="badge unused-badge">⚠️ Non Usato</span>
+                                    <span class="badge unused-badge">⚠️ Not Used</span>
                                     {% endif %}
                                 </div>
                             </div>
@@ -171,14 +171,14 @@
                                 <span class="detail-value mountpoint">{{ volume.mountpoint }}</span>
                             </div>
                             <div class="detail-row">
-                                <span class="detail-label">📅 Creato:</span>
+                                <span class="detail-label">📅 Created:</span>
                                 <span class="detail-value">{{ volume.created }}</span>
                             </div>
                         </div>
 
                         {% if volume.containers %}
                         <div class="using-containers">
-                            <h4>📦 Usato da</h4>
+                            <h4>📦 Used by</h4>
                             <div class="container-list">
                                 {% for container in volume.containers %}
                                 <div class="using-container" onclick="window.location.href='/container/{{ container.id }}'">
@@ -201,13 +201,13 @@
                     {% endfor %}
                 {% else %}
                     <div class="empty-state">
-                        <p>📭 Nessun volume trovato</p>
+                        <p>📭 No volumes found</p>
                     </div>
                 {% endif %}
             </div>
         </div>
 
-        <button class="refresh-btn" onclick="location.reload()">🔄 Aggiorna</button>
+        <button class="refresh-btn" onclick="location.reload()">🔄 Refresh</button>
     </div>
 
     <script src="{{ url_for('static', filename='js/networks_volumes.js') }}"></script>

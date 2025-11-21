@@ -1,38 +1,38 @@
 /**
  * Docker Watcher - Main JavaScript
- * Gestisce la navigazione tra le sezioni e l'aggiornamento automatico dei dati
+ * Handles navigation between sections and automatic data updates
  */
 
-// Variabile globale per tenere traccia della sezione attiva
+// Global variable to track active section
 let currentSection = 'images';
-// Traccia gli stati di salute precedenti
+// Track previous health states
 let previousHealthStates = {};
 
 function showSection(sectionId) {
-    // Aggiorna la sezione corrente
+    // Update current section
     currentSection = sectionId;
     
-    // Nascondi tutte le sezioni
+    // Hide all sections
     const sections = document.querySelectorAll('.section-content');
     sections.forEach(section => {
         section.classList.remove('active');
     });
 
-    // Rimuovi classe active da tutti i bottoni
+    // Remove active class from all buttons
     const buttons = document.querySelectorAll('.nav-btn');
     buttons.forEach(btn => {
         btn.classList.remove('active');
     });
 
-    // Mostra la sezione selezionata
+    // Show selected section
     document.getElementById(sectionId).classList.add('active');
 
-    // Aggiungi classe active al bottone cliccato
+    // Add active class to clicked button
     event.target.classList.add('active');
 }
 
 /**
- * Funzione di ricerca generica
+ * Generic search function
  */
 function setupSearch(searchInputId, listId) {
     const searchInput = document.getElementById(searchInputId);
@@ -56,7 +56,7 @@ function setupSearch(searchInputId, listId) {
 }
 
 /**
- * Aggiorna le statistiche in tempo reale
+ * Update real-time statistics
  */
 async function updateStats() {
     try {
@@ -64,11 +64,11 @@ async function updateStats() {
         const stats = await response.json();
         
         if (stats.error) {
-            console.error('Errore dal server:', stats.error);
+            console.error('Error from server:', stats.error);
             return;
         }
         
-        // Aggiorna i valori nelle card
+        // Update values in cards
         document.querySelectorAll('.stat-card').forEach((card, index) => {
             const valueElement = card.querySelector('.stat-value');
             const detailElement = card.querySelector('.stat-detail');
@@ -82,14 +82,14 @@ async function updateStats() {
                 case 4: newValue = stats.cpu_usage + '%'; break;
                 case 5: 
                     newValue = stats.ram_usage + '%';
-                    // Aggiorna anche il dettaglio GB per la RAM
+                    // Also update GB detail for RAM
                     if (detailElement && stats.ram_used_gb && stats.ram_total_gb) {
                         detailElement.textContent = `${stats.ram_used_gb} GB / ${stats.ram_total_gb} GB`;
                     }
                     break;
             }
             
-            // Animazione del cambio valore
+            // Value change animation
             if (valueElement.textContent != newValue) {
                 valueElement.style.color = '#22c55e';
                 valueElement.textContent = newValue;
@@ -99,14 +99,14 @@ async function updateStats() {
             }
         });
         
-        console.log('✅ Statistiche aggiornate');
+        console.log('✅ Statistics updated');
     } catch (error) {
-        console.error('❌ Errore aggiornamento statistiche:', error);
+        console.error('❌ Error updating statistics:', error);
     }
 }
 
 /**
- * Aggiorna la lista delle immagini Docker
+ * Update Docker images list
  */
 async function updateImages() {
     try {
@@ -118,7 +118,7 @@ async function updateImages() {
         if (images.length === 0) {
             list.innerHTML = `
                 <p style="text-align: center; color: #94a3b8; padding: 20px;">
-                    Nessuna immagine Docker trovata
+                    No Docker images found
                 </p>
             `;
             return;
@@ -128,13 +128,13 @@ async function updateImages() {
         
         images.forEach(image => {
             const statusClass = image.in_use ? 'running' : 'stopped';
-            const statusText = image.in_use ? 'IN USO' : 'NON UTILIZZATA';
+            const statusText = image.in_use ? 'IN USE' : 'NOT USED';
             
             html += `
                 <div class="container-item" data-name="${image.name.toLowerCase()}">
                     <div class="container-info">
                         <h4>${image.name}</h4>
-                        <p>ID: ${image.id} • Dimensione: ${image.size} MB • Scaricata: ${image.created}</p>
+                        <p>ID: ${image.id} • Size: ${image.size} MB • Downloaded: ${image.created}</p>
                     </div>
                     <span class="status ${statusClass}">${statusText}</span>
                 </div>
@@ -142,14 +142,14 @@ async function updateImages() {
         });
         
         list.innerHTML = html;
-        console.log('✅ Immagini aggiornate');
+        console.log('✅ Images updated');
     } catch (error) {
-        console.error('❌ Errore aggiornamento immagini:', error);
+        console.error('❌ Error updating images:', error);
     }
 }
 
 /**
- * Aggiorna la lista dei container attivi
+ * Update running containers list
  */
 async function updateRunningContainers() {
     try {
@@ -161,7 +161,7 @@ async function updateRunningContainers() {
         if (containers.length === 0) {
             list.innerHTML = `
                 <p style="text-align: center; color: #94a3b8; padding: 20px;">
-                    Nessun container in esecuzione
+                    No running containers
                 </p>
             `;
             return;
@@ -185,8 +185,8 @@ async function updateRunningContainers() {
                     text = 'Unhealthy';
                     healthClass = 'unhealthy';
                     
-                    // Notifica se unhealthy
-                    showNotification(`⚠️ Container ${cont.name} è diventato UNHEALTHY!`);
+                    // Notify if unhealthy
+                    showNotification(`⚠️ Container ${cont.name} became UNHEALTHY!`);
                 }
                 
                 healthBadge = `<span class="health-badge ${healthClass}">${emoji} ${text}</span>`;
@@ -196,9 +196,9 @@ async function updateRunningContainers() {
                 <div class="container-item clickable" onclick="window.location.href='/container/${cont.id}'" data-name="${cont.name.toLowerCase()}">
                     <div class="container-info">
                         <h4>${cont.name}</h4>
-                        <p>Immagine: ${cont.image} • ID: ${cont.id} • Porta: ${cont.ports}</p>
+                        <p>Image: ${cont.image} • ID: ${cont.id} • Port: ${cont.ports}</p>
                         <p style="font-size: 0.85em; color: #64748b; margin-top: 4px;">
-                            ⏰ Avviato: ${cont.started_at}
+                            ⏰ Started: ${cont.started_at}
                         </p>
                     </div>
                     <div style="display: flex; gap: 8px; align-items: center;">
@@ -210,14 +210,14 @@ async function updateRunningContainers() {
         });
         
         list.innerHTML = html;
-        console.log('✅ Container attivi aggiornati');
+        console.log('✅ Running containers updated');
     } catch (error) {
-        console.error('❌ Errore aggiornamento container attivi:', error);
+        console.error('❌ Error updating running containers:', error);
     }
 }
 
 /**
- * Aggiorna la lista dei container fermati
+ * Update stopped containers list
  */
 async function updateStoppedContainers() {
     try {
@@ -229,7 +229,7 @@ async function updateStoppedContainers() {
         if (containers.length === 0) {
             list.innerHTML = `
                 <p style="text-align: center; color: #94a3b8; padding: 20px;">
-                    Nessun container fermato
+                    No stopped containers
                 </p>
             `;
             return;
@@ -242,9 +242,9 @@ async function updateStoppedContainers() {
                 <div class="container-item" data-name="${cont.name.toLowerCase()}">
                     <div class="container-info">
                         <h4>${cont.name}</h4>
-                        <p>Immagine: ${cont.image} • ID: ${cont.id} • Porta: ${cont.ports}</p>
+                        <p>Image: ${cont.image} • ID: ${cont.id} • Port: ${cont.ports}</p>
                         <p style="font-size: 0.85em; color: #64748b; margin-top: 4px;">
-                            ⏰ Ultimo avvio: ${cont.started_at}
+                            ⏰ Last start: ${cont.started_at}
                         </p>
                     </div>
                     <span class="status stopped">STOPPED</span>
@@ -253,39 +253,39 @@ async function updateStoppedContainers() {
         });
         
         list.innerHTML = html;
-        console.log('✅ Container fermati aggiornati');
+        console.log('✅ Stopped containers updated');
     } catch (error) {
-        console.error('❌ Errore aggiornamento container fermati:', error);
+        console.error('❌ Error updating stopped containers:', error);
     }
 }
 
 /**
- * Aggiorna tutti i dati
+ * Update all data
  */
 async function updateAllData() {
-    console.log('🔄 Aggiornamento dati in corso...');
+    console.log('🔄 Data update in progress...');
     
     await updateStats();
     await updateImages();
     await updateRunningContainers();
     await updateStoppedContainers();
     
-    // Aggiorna il timestamp dell'ultimo aggiornamento
+    // Update last refresh timestamp
     updateLastRefreshTime();
 }
 
 /**
- * Mostra l'orario dell'ultimo aggiornamento
+ * Show last update time
  */
 function updateLastRefreshTime() {
     const now = new Date();
-    const timeString = now.toLocaleTimeString('it-IT');
+    const timeString = now.toLocaleTimeString('en-US');
     
-    // Cerca se esiste già l'elemento del timestamp
+    // Check if timestamp element already exists
     let timeElement = document.querySelector('.last-refresh-time');
     
     if (!timeElement) {
-        // Crea l'elemento se non esiste
+        // Create element if it doesn't exist
         timeElement = document.createElement('div');
         timeElement.className = 'last-refresh-time';
         timeElement.style.cssText = `
@@ -302,26 +302,26 @@ function updateLastRefreshTime() {
         document.body.appendChild(timeElement);
     }
     
-    timeElement.textContent = `⏱️ Aggiornato: ${timeString}`;
+    timeElement.textContent = `⏱️ Updated: ${timeString}`;
 }
 
 /**
- * Mostra una notifica toast
+ * Show toast notification
  */
 function showNotification(message) {
-    // Verifica se la notifica è già stata mostrata recentemente
+    // Check if notification was recently shown
     const notifKey = `notif_${message}`;
     const lastShown = sessionStorage.getItem(notifKey);
     const now = Date.now();
     
-    // Non mostrare la stessa notifica più di una volta ogni 5 minuti
+    // Don't show same notification more than once every 5 minutes
     if (lastShown && (now - parseInt(lastShown)) < 300000) {
         return;
     }
     
     sessionStorage.setItem(notifKey, now.toString());
     
-    // Crea l'elemento notifica
+    // Create notification element
     const notification = document.createElement('div');
     notification.className = 'notification-toast';
     notification.textContent = message;
@@ -340,10 +340,10 @@ function showNotification(message) {
         border: 2px solid #ef4444;
     `;
     
-    // Aggiungi al body
+    // Add to body
     document.body.appendChild(notification);
     
-    // Rimuovi dopo 5 secondi
+    // Remove after 5 seconds
     setTimeout(() => {
         notification.style.animation = 'slideOut 0.3s ease-in';
         setTimeout(() => {
@@ -351,10 +351,10 @@ function showNotification(message) {
         }, 300);
     }, 5000);
     
-    console.warn('🚨 NOTIFICA:', message);
+    console.warn('🚨 NOTIFICATION:', message);
 }
 
-// Aggiungi gli stili per le animazioni
+// Add styles for animations
 const style = document.createElement('style');
 style.textContent = `
     @keyframes slideIn {
@@ -382,20 +382,20 @@ style.textContent = `
 document.head.appendChild(style);
 
 
-// Inizializzazione quando il DOM è caricato
+// Initialization when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🐳 Docker Watcher inizializzato');
+    console.log('🐳 Docker Watcher initialized');
     
-    // Setup ricerca per ogni sezione
+    // Setup search for each section
     setupSearch('search-images', 'images-list');
     setupSearch('search-active', 'active-list');
     setupSearch('search-inactive', 'inactive-list');
     
-    // Primo aggiornamento immediato
+    // First immediate update
     updateAllData();
     
-    // Aggiornamento automatico ogni 20 secondi
+    // Automatic update every 20 seconds
     setInterval(updateAllData, 20000);
     
-    console.log('✅ Auto-refresh attivo (ogni 20 secondi)');
+    console.log('✅ Auto-refresh active (every 20 seconds)');
 });
