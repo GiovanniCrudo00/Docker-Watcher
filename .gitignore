@@ -8,3 +8,4 @@ start.sh
 docker-compose.yml
 Dockerfile 
 .dockerignore
+data/
