@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ network.name }} - Topology - Docker Watcher</title>
+    <link rel="icon" type="image/png" href="https://www.docker.com/wp-content/uploads/2022/03/Moby-logo.png">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/network_topology.css') }}">
+    
+    <!-- Vis.js Network -->
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="back-button" onclick="window.location.href='/networks-volumes'">
+            ← Torna a Networks & Volumes
+        </div>
+
+        <header>
+            <div class="header-content">
+                <img src="https://www.docker.com/wp-content/uploads/2022/03/Moby-logo.png" alt="Docker Logo" class="docker-logo">
+                <div class="header-text">
+                    <h1>🌐 {{ network.name }}</h1>
+                    <p class="subtitle">Network Topology Visualization</p>
+                </div>
+            </div>
+        </header>
+
+        <!-- Network Info Card -->
+        <div class="network-info-card">
+            <div class="info-grid">
+                <div class="info-item">
+                    <span class="info-label">🆔 ID:</span>
+                    <span class="info-value">{{ network.id }}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">🔧 Driver:</span>
+                    <span class="info-value">{{ network.driver }}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">🌍 Scope:</span>
+                    <span class="info-value">{{ network.scope }}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">🌍 Subnet:</span>
+                    <span class="info-value">{{ network.subnet }}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">🚪 Gateway:</span>
+                    <span class="info-value">{{ network.gateway }}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">🔒 Internal:</span>
+                    <span class="info-value">{{ 'Yes' if network.internal else 'No' }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Topology Visualization -->
+        <div class="topology-container">
+            <div class="topology-header">
+                <h2>📊 Network Topology</h2>
+                <div class="topology-controls">
+                    <button class="control-btn" onclick="fitNetwork()" title="Fit to screen">
+                        🔍 Fit
+                    </button>
+                    <button class="control-btn" onclick="resetZoom()" title="Reset zoom">
+                        ↺ Reset
+                    </button>
+                    <button class="control-btn" onclick="togglePhysics()" title="Toggle physics">
+                        <span id="physics-icon">⚡</span> Physics
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Canvas per il grafico -->
+            <div id="network-graph"></div>
+            
+            <!-- Legenda -->
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-icon network-icon"></div>
+                    <span>Network</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-icon container-running"></div>
+                    <span>Running</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-icon container-stopped"></div>
+                    <span>Stopped</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-icon container-other"></div>
+                    <span>Other</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Info Panel (mostra dettagli quando clicchi un nodo) -->
+        <div id="info-panel" class="info-panel hidden">
+            <div class="info-panel-header">
+                <h3 id="info-title">Node Info</h3>
+                <button class="close-btn" onclick="closeInfoPanel()">✕</button>
+            </div>
+            <div id="info-content" class="info-panel-content">
+                <!-- Sarà popolato dinamicamente -->
+            </div>
+            <div class="info-panel-actions" id="info-actions">
+                <!-- Sarà popolato dinamicamente -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const networkId = '{{ network.id }}';
+    </script>
+    <script src="{{ url_for('static', filename='js/network_topology.js') }}"></script>
+</body>
+</html>

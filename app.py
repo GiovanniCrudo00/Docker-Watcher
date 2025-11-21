@@ -390,6 +390,167 @@ def get_containers_data(running_only=True):
         return []
 
 
+def get_networks_data():
+    """Ottieni informazioni sulle reti Docker"""
+    if not client:
+        return []
+    
+    try:
+        networks = client.networks.list()
+        networks_data = []
+        
+        for network in networks:
+            # IMPORTANTE: Ricarica la rete per avere dati aggiornati
+            try:
+                network.reload()
+            except:
+                pass
+            
+            # Ottieni container connessi alla rete
+            connected_containers = []
+            
+            # Debug: stampa info rete
+            print(f"🌐 Processing network: {network.name}")
+            
+            containers_in_network = network.attrs.get('Containers', {})
+            print(f"   Found {len(containers_in_network)} containers in network")
+            
+            # Se non trova container, prova metodo alternativo
+            if not containers_in_network:
+                print(f"   ⚠️  No containers in attrs, trying alternative method...")
+                
+                # Metodo alternativo: cerca tutti i container e vedi quali sono connessi
+                all_containers = client.containers.list(all=True)
+                for container in all_containers:
+                    network_settings = container.attrs.get('NetworkSettings', {})
+                    networks_dict = network_settings.get('Networks', {})
+                    
+                    if network.name in networks_dict:
+                        net_info = networks_dict[network.name]
+                        
+                        # Ottieni IPv4
+                        ipv4 = net_info.get('IPAddress', 'N/A')
+                        ipv6 = net_info.get('GlobalIPv6Address', 'N/A')
+                        
+                        connected_containers.append({
+                            'id': container.short_id,
+                            'name': container.name,
+                            'ipv4': ipv4,
+                            'ipv6': ipv6,
+                            'status': container.status
+                        })
+                        
+                        print(f"   ✅ Found via alternative: {container.name} ({ipv4})")
+            else:
+                # Metodo standard
+                for container_id, container_info in containers_in_network.items():
+                    try:
+                        container = client.containers.get(container_id)
+                        
+                        # Ottieni IPv4 (rimuovi /subnet se presente)
+                        ipv4_raw = container_info.get('IPv4Address', '')
+                        ipv4 = ipv4_raw.split('/')[0] if ipv4_raw else 'N/A'
+                        
+                        # Ottieni IPv6 (rimuovi /subnet se presente)
+                        ipv6_raw = container_info.get('IPv6Address', '')
+                        ipv6 = ipv6_raw.split('/')[0] if ipv6_raw else 'N/A'
+                        
+                        connected_containers.append({
+                            'id': container.short_id,
+                            'name': container.name,
+                            'ipv4': ipv4,
+                            'ipv6': ipv6,
+                            'status': container.status
+                        })
+                        
+                        print(f"   ✅ Added container: {container.name} ({ipv4})")
+                        
+                    except Exception as e:
+                        print(f"   ❌ Error getting container {container_id[:12]}: {e}")
+                        continue
+            
+            # Ottieni configurazione IPAM
+            ipam_config = network.attrs.get('IPAM', {}).get('Config', [])
+            subnet = ipam_config[0].get('Subnet', 'N/A') if ipam_config else 'N/A'
+            gateway = ipam_config[0].get('Gateway', 'N/A') if ipam_config else 'N/A'
+            
+            networks_data.append({
+                'id': network.short_id,
+                'name': network.name,
+                'driver': network.attrs.get('Driver', 'unknown'),
+                'scope': network.attrs.get('Scope', 'unknown'),
+                'internal': network.attrs.get('Internal', False),
+                'subnet': subnet,
+                'gateway': gateway,
+                'containers': connected_containers,
+                'container_count': len(connected_containers)
+            })
+            
+            print(f"   📊 Network {network.name}: {len(connected_containers)} containers added")
+        
+        # Ordina per numero di container (decrescente)
+        networks_data.sort(key=lambda x: x['container_count'], reverse=True)
+        
+        print(f"✅ Total networks processed: {len(networks_data)}")
+        return networks_data
+        
+    except Exception as e:
+        print(f"❌ Errore nel recupero networks: {e}")
+        import traceback
+        traceback.print_exc()
+        return []
+
+
+def get_volumes_data():
+    """Ottieni informazioni sui volumi Docker"""
+    if not client:
+        return []
+    
+    try:
+        volumes = client.volumes.list()
+        volumes_data = []
+        
+        # Ottieni tutti i container per verificare quali volumi sono in uso
+        all_containers = client.containers.list(all=True)
+        
+        for volume in volumes:
+            # Trova container che usano questo volume
+            using_containers = []
+            for container in all_containers:
+                mounts = container.attrs.get('Mounts', [])
+                for mount in mounts:
+                    if mount.get('Type') == 'volume' and mount.get('Name') == volume.name:
+                        using_containers.append({
+                            'id': container.short_id,
+                            'name': container.name,
+                            'status': container.status,
+                            'destination': mount.get('Destination', 'N/A'),
+                            'mode': mount.get('Mode', 'rw')
+                        })
+            
+            # Calcola dimensione (se possibile)
+            # Nota: Docker non fornisce size direttamente, questa è una stima
+            
+            volumes_data.append({
+                'name': volume.name,
+                'driver': volume.attrs.get('Driver', 'local'),
+                'mountpoint': volume.attrs.get('Mountpoint', 'N/A'),
+                'scope': volume.attrs.get('Scope', 'local'),
+                'created': volume.attrs.get('CreatedAt', 'N/A')[:19].replace('T', ' ') if volume.attrs.get('CreatedAt') else 'N/A',
+                'containers': using_containers,
+                'container_count': len(using_containers),
+                'in_use': len(using_containers) > 0
+            })
+        
+        # Ordina: prima quelli in uso, poi per numero di container
+        volumes_data.sort(key=lambda x: (not x['in_use'], -x['container_count']))
+        
+        return volumes_data
+    except Exception as e:
+        print(f"Errore nel recupero volumes: {e}")
+        return []
+
+
 @app.route('/')
 def home():
     """Homepage con dati Docker"""
@@ -581,6 +742,256 @@ def api_container_logs(container_id):
         return jsonify({'logs': log_lines})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/networks-volumes')
+def networks_volumes():
+    """Pagina networks e volumes"""
+    networks = get_networks_data()
+    volumes = get_volumes_data()
+    
+    return render_template('networks_volumes.html', networks=networks, volumes=volumes)
+
+
+@app.route('/network/<network_id>/topology')
+def network_topology(network_id):
+    """Pagina topologia di una rete specifica"""
+    if not client:
+        return "Docker non disponibile", 500
+    
+    try:
+        # Recupera la rete specifica
+        network = client.networks.get(network_id)
+        
+        # Ricarica per dati aggiornati
+        try:
+            network.reload()
+        except:
+            pass
+        
+        # Info base della rete
+        network_info = {
+            'id': network.short_id,
+            'name': network.name,
+            'driver': network.attrs.get('Driver', 'unknown'),
+            'scope': network.attrs.get('Scope', 'unknown'),
+            'internal': network.attrs.get('Internal', False),
+        }
+        
+        # IPAM
+        ipam_config = network.attrs.get('IPAM', {}).get('Config', [])
+        network_info['subnet'] = ipam_config[0].get('Subnet', 'N/A') if ipam_config else 'N/A'
+        network_info['gateway'] = ipam_config[0].get('Gateway', 'N/A') if ipam_config else 'N/A'
+        
+        return render_template('network_topology.html', network=network_info)
+        
+    except Exception as e:
+        return f"Errore: {e}", 404
+
+
+@app.route('/api/network/<network_id>/topology')
+def api_network_topology(network_id):
+    """API per ottenere dati topologia rete in formato Vis.js"""
+    if not client:
+        return jsonify({'error': 'Docker non disponibile'}), 500
+    
+    try:
+        network = client.networks.get(network_id)
+        
+        # Ricarica
+        try:
+            network.reload()
+        except:
+            pass
+        
+        nodes = []
+        edges = []
+        
+        # Aggiungi il nodo centrale della rete
+        network_node_id = f"network_{network.id}"
+        nodes.append({
+            'id': network_node_id,
+            'label': network.name,
+            'shape': 'diamond',
+            'size': 40,
+            'color': {
+                'background': '#3b82f6',
+                'border': '#2563eb',
+                'highlight': {
+                    'background': '#60a5fa',
+                    'border': '#3b82f6'
+                }
+            },
+            'font': {
+                'color': '#ffffff',
+                'size': 16,
+                'face': 'arial',
+                'bold': True
+            },
+            'type': 'network',
+            'info': {
+                'driver': network.attrs.get('Driver', 'unknown'),
+                'scope': network.attrs.get('Scope', 'unknown'),
+                'subnet': '',
+                'gateway': ''
+            }
+        })
+        
+        # IPAM info
+        ipam_config = network.attrs.get('IPAM', {}).get('Config', [])
+        if ipam_config:
+            nodes[0]['info']['subnet'] = ipam_config[0].get('Subnet', 'N/A')
+            nodes[0]['info']['gateway'] = ipam_config[0].get('Gateway', 'N/A')
+        
+        # Trova container connessi (metodo alternativo)
+        connected_containers = []
+        containers_in_network = network.attrs.get('Containers', {})
+        
+        if not containers_in_network:
+            # Metodo alternativo
+            all_containers = client.containers.list(all=True)
+            for container in all_containers:
+                network_settings = container.attrs.get('NetworkSettings', {})
+                networks_dict = network_settings.get('Networks', {})
+                
+                if network.name in networks_dict:
+                    net_info = networks_dict[network.name]
+                    connected_containers.append({
+                        'container': container,
+                        'ipv4': net_info.get('IPAddress', 'N/A'),
+                        'ipv6': net_info.get('GlobalIPv6Address', 'N/A'),
+                        'mac': net_info.get('MacAddress', 'N/A')
+                    })
+        else:
+            # Metodo standard
+            for container_id, container_info in containers_in_network.items():
+                try:
+                    container = client.containers.get(container_id)
+                    ipv4_raw = container_info.get('IPv4Address', '')
+                    ipv4 = ipv4_raw.split('/')[0] if ipv4_raw else 'N/A'
+                    
+                    connected_containers.append({
+                        'container': container,
+                        'ipv4': ipv4,
+                        'ipv6': container_info.get('IPv6Address', 'N/A'),
+                        'mac': container_info.get('MacAddress', 'N/A')
+                    })
+                except:
+                    continue
+        
+        # Aggiungi nodi container
+        for item in connected_containers:
+            container = item['container']
+            
+                    # Colore basato su status - colori più scuri e contrastati
+            if container.status == 'running':
+                color_bg = '#065f46'      # Verde scuro
+                color_border = '#10b981'   # Verde brillante per bordo
+                color_highlight_bg = '#059669'
+            elif container.status == 'exited':
+                color_bg = '#1e293b'       # Grigio scuro
+                color_border = '#64748b'   # Grigio medio per bordo
+                color_highlight_bg = '#334155'
+            else:
+                color_bg = '#78350f'       # Arancione scuro
+                color_border = '#f59e0b'   # Arancione brillante per bordo
+                color_highlight_bg = '#92400e'
+            
+            # Ottieni porte
+            ports = container.attrs['NetworkSettings']['Ports']
+            port_list = []
+            if ports:
+                for container_port, host_info in ports.items():
+                    if host_info:
+                        for mapping in host_info:
+                            host_port = mapping.get('HostPort', '')
+                            port_list.append(f"{host_port}:{container_port}")
+            
+            nodes.append({
+                'id': container.id,
+                'label': container.name,
+                'shape': 'box',
+                'size': 25,
+                'color': {
+                    'background': color_bg,
+                    'border': color_border,
+                    'highlight': {
+                        'background': color_highlight_bg,
+                        'border': color_border
+                    }
+                },
+                'font': {
+                    'color': '#ffffff',
+                    'size': 14,
+                    'face': 'arial'
+                },
+                'type': 'container',
+                'info': {
+                    'id': container.short_id,
+                    'name': container.name,
+                    'status': container.status,
+                    'image': container.image.tags[0] if container.image.tags else 'unknown',
+                    'ipv4': item['ipv4'],
+                    'ipv6': item['ipv6'],
+                    'mac': item['mac'],
+                    'ports': ', '.join(port_list) if port_list else 'N/A'
+                }
+            })
+            
+            # Aggiungi edge tra rete e container
+            edges.append({
+                'from': network_node_id,
+                'to': container.id,
+                'color': {
+                    'color': '#94a3b8',
+                    'highlight': '#3b82f6'
+                },
+                'width': 2,
+                'smooth': {
+                    'type': 'cubicBezier',
+                    'roundness': 0.5
+                }
+            })
+        
+        # Aggiungi edges tra container (stessa rete = possono comunicare)
+        # Questo crea una mesh completa, opzionale
+        # for i, item1 in enumerate(connected_containers):
+        #     for item2 in connected_containers[i+1:]:
+        #         edges.append({
+        #             'from': item1['container'].id,
+        #             'to': item2['container'].id,
+        #             'color': {
+        #                 'color': '#334155',
+        #                 'opacity': 0.3
+        #             },
+        #             'dashes': True,
+        #             'width': 1
+        #         })
+        
+        return jsonify({
+            'nodes': nodes,
+            'edges': edges
+        })
+        
+    except Exception as e:
+        print(f"❌ Errore topology: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/networks')
+def api_networks():
+    """API endpoint per ottenere lista networks"""
+    networks = get_networks_data()
+    return jsonify(networks)
+
+
+@app.route('/api/volumes')
+def api_volumes():
+    """API endpoint per ottenere lista volumes"""
+    volumes = get_volumes_data()
+    return jsonify(volumes)
 
 
 def collect_stats_background():

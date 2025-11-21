@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Networks & Volumes - Docker Watcher</title>
+    <link rel="icon" type="image/png" href="https://www.docker.com/wp-content/uploads/2022/03/Moby-logo.png">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/networks_volumes.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="back-button" onclick="window.location.href='/'">
+            ← Torna alla Dashboard
+        </div>
+
+        <header>
+            <div class="header-content">
+                <img src="https://www.docker.com/wp-content/uploads/2022/03/Moby-logo.png" alt="Docker Logo" class="docker-logo">
+                <div class="header-text">
+                    <h1>Networks & Volumes</h1>
+                    <p class="subtitle">Docker infrastructure overview</p>
+                </div>
+            </div>
+        </header>
+
+        <!-- Tab Navigation -->
+        <div class="navbar">
+            <button class="nav-btn active" onclick="showTab('networks')">🌐 Networks</button>
+            <button class="nav-btn" onclick="showTab('volumes')">💾 Volumes</button>
+        </div>
+
+        <!-- NETWORKS SECTION -->
+        <div id="networks" class="tab-content active">
+            <div class="section-header">
+                <h2>🌐 Docker Networks</h2>
+                <div class="section-stats">
+                    <span class="stat-badge">{{ networks|length }} Networks Totali</span>
+                    <span class="stat-badge">{{ networks|selectattr('container_count', 'gt', 0)|list|length }} In Uso</span>
+                </div>
+            </div>
+
+            <div class="search-bar">
+                <input type="text" id="search-networks" class="search-box" placeholder="🔍 Cerca network...">
+            </div>
+
+            <div class="networks-grid" id="networks-list">
+                {% if networks %}
+                    {% for network in networks %}
+                    <div class="network-card clickable-network" data-name="{{ network.name|lower }}" onclick="window.location.href='/network/{{ network.id }}/topology'">
+                        <div class="network-header">
+                            <div class="network-info">
+                                <h3>{{ network.name }}</h3>
+                                <div class="network-meta">
+                                    <span class="badge driver-badge">{{ network.driver }}</span>
+                                    <span class="badge scope-badge">{{ network.scope }}</span>
+                                    {% if network.internal %}
+                                    <span class="badge internal-badge">🔒 Internal</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="network-stats">
+                                <div class="stat-circle {% if network.container_count > 0 %}active{% else %}inactive{% endif %}">
+                                    <span class="stat-number">{{ network.container_count }}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="network-details">
+                            <div class="detail-row">
+                                <span class="detail-label">🆔 ID:</span>
+                                <span class="detail-value">{{ network.id }}</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">🌍 Subnet:</span>
+                                <span class="detail-value">{{ network.subnet }}</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">🚪 Gateway:</span>
+                                <span class="detail-value">{{ network.gateway }}</span>
+                            </div>
+                        </div>
+
+                        {% if network.containers %}
+                        <div class="connected-containers">
+                            <h4>📦 Container Connessi</h4>
+                            <div class="container-list">
+                                {% for container in network.containers %}
+                                <div class="connected-container" onclick="window.location.href='/container/{{ container.id }}'">
+                                    <div class="container-icon {% if container.status == 'running' %}running{% else %}stopped{% endif %}">
+                                        🐳
+                                    </div>
+                                    <div class="container-details">
+                                        <div class="container-name">{{ container.name }}</div>
+                                        <div class="container-ip">
+                                            {% if container.ipv4 != 'N/A' %}
+                                            🔗 {{ container.ipv4 }}
+                                            {% else %}
+                                            🔗 No IP
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <span class="status-indicator {{ container.status }}">{{ container.status }}</span>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="no-containers">
+                            <span>📭 Nessun container connesso</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-state">
+                        <p>📭 Nessuna network trovata</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- VOLUMES SECTION -->
+        <div id="volumes" class="tab-content">
+            <div class="section-header">
+                <h2>💾 Docker Volumes</h2>
+                <div class="section-stats">
+                    <span class="stat-badge">{{ volumes|length }} Volumes Totali</span>
+                    <span class="stat-badge">{{ volumes|selectattr('in_use')|list|length }} In Uso</span>
+                </div>
+            </div>
+
+            <div class="search-bar">
+                <input type="text" id="search-volumes" class="search-box" placeholder="🔍 Cerca volume...">
+            </div>
+
+            <div class="volumes-list" id="volumes-list">
+                {% if volumes %}
+                    {% for volume in volumes %}
+                    <div class="volume-card {% if not volume.in_use %}unused{% endif %}" data-name="{{ volume.name|lower }}">
+                        <div class="volume-header">
+                            <div class="volume-icon">
+                                {% if volume.in_use %}
+                                <span class="icon-active">💾</span>
+                                {% else %}
+                                <span class="icon-inactive">📦</span>
+                                {% endif %}
+                            </div>
+                            <div class="volume-info">
+                                <h3>{{ volume.name }}</h3>
+                                <div class="volume-meta">
+                                    <span class="badge driver-badge">{{ volume.driver }}</span>
+                                    <span class="badge scope-badge">{{ volume.scope }}</span>
+                                    {% if volume.in_use %}
+                                    <span class="badge in-use-badge">✅ In Uso</span>
+                                    {% else %}
+                                    <span class="badge unused-badge">⚠️ Non Usato</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="volume-stats">
+                                <div class="stat-circle {% if volume.container_count > 0 %}active{% else %}inactive{% endif %}">
+                                    <span class="stat-number">{{ volume.container_count }}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="volume-details">
+                            <div class="detail-row">
+                                <span class="detail-label">📂 Mountpoint:</span>
+                                <span class="detail-value mountpoint">{{ volume.mountpoint }}</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">📅 Creato:</span>
+                                <span class="detail-value">{{ volume.created }}</span>
+                            </div>
+                        </div>
+
+                        {% if volume.containers %}
+                        <div class="using-containers">
+                            <h4>📦 Usato da</h4>
+                            <div class="container-list">
+                                {% for container in volume.containers %}
+                                <div class="using-container" onclick="window.location.href='/container/{{ container.id }}'">
+                                    <div class="container-icon {% if container.status == 'running' %}running{% else %}stopped{% endif %}">
+                                        🐳
+                                    </div>
+                                    <div class="container-details">
+                                        <div class="container-name">{{ container.name }}</div>
+                                        <div class="container-mount">
+                                            📁 → {{ container.destination }} ({{ container.mode }})
+                                        </div>
+                                    </div>
+                                    <span class="status-indicator {{ container.status }}">{{ container.status }}</span>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-state">
+                        <p>📭 Nessun volume trovato</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <button class="refresh-btn" onclick="location.reload()">🔄 Aggiorna</button>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/networks_volumes.js') }}"></script>
+</body>
+</html>
