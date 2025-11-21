@@ -7,8 +7,14 @@
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/docker-logo.png') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/networks_volumes.css') }}">
+    <!-- 🎄 Christmas Theme 🎄 -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/christmas.css') }}">
 </head>
 <body>
+    <!-- 🎄 Christmas Theme 🎄 -->
+    {% include 'partials/christmas.html' ignore missing %}
+
+    <div class="container">
     <div class="container">
         <div class="back-button" onclick="window.location.href='/'">
             ← Back to Dashboard

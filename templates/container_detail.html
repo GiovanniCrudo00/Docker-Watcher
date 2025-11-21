@@ -8,8 +8,12 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/container_detail.css') }}">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- 🎄 Christmas Theme 🎄 -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/christmas.css') }}">
 </head>
 <body>
+    <!-- 🎄 Christmas Theme 🎄 -->
+    {% include 'partials/christmas.html' ignore missing %}
     <div class="container">
         <div class="back-button" onclick="window.location.href='/'">
             ← Back to Dashboard

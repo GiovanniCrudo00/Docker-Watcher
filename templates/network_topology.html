@@ -7,11 +7,17 @@
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/docker-logo.png') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/network_topology.css') }}">
+    <!-- 🎄 Christmas Theme 🎄 -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/christmas.css') }}">
     
     <!-- Vis.js Network -->
     <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
 </head>
 <body>
+    <!-- 🎄 Christmas Theme 🎄 -->
+    {% include 'partials/christmas.html' ignore missing %}
+
+    <div class="container">
     <div class="container">
         <div class="back-button" onclick="window.location.href='/networks-volumes'">
             ← Back to Networks & Volumes
