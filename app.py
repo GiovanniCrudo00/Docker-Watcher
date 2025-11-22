@@ -8,6 +8,18 @@ import time
 import sqlite3
 import os
 
+# Import alert system
+try:
+    from alerts import get_alert_manager, get_email_sender, get_config as get_alert_config
+    ALERTS_ENABLED = True
+    print("✅ Alert system loaded successfully")
+except ImportError as e:
+    ALERTS_ENABLED = False
+    print(f"⚠️  Alert system not available: {e}")
+except Exception as e:
+    ALERTS_ENABLED = False
+    print(f"⚠️  Alert system configuration error: {e}")
+
 app = Flask(__name__)
 
 # Initialize Docker client
@@ -33,6 +45,7 @@ def init_database():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
+    # Container stats table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS container_stats (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -51,10 +64,36 @@ def init_database():
         )
     ''')
     
+    # Alert history table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS alert_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            batch_id TEXT,
+            container_id TEXT NOT NULL,
+            container_name TEXT NOT NULL,
+            alert_type TEXT NOT NULL,
+            priority TEXT NOT NULL,
+            value REAL,
+            timestamp DATETIME NOT NULL,
+            email_sent BOOLEAN NOT NULL,
+            cooldown_until DATETIME
+        )
+    ''')
+    
     # Index for faster queries
     cursor.execute('''
         CREATE INDEX IF NOT EXISTS idx_container_timestamp 
         ON container_stats(container_id, timestamp DESC)
+    ''')
+    
+    cursor.execute('''
+        CREATE INDEX IF NOT EXISTS idx_alert_timestamp 
+        ON alert_history(timestamp DESC)
+    ''')
+    
+    cursor.execute('''
+        CREATE INDEX IF NOT EXISTS idx_alert_container 
+        ON alert_history(container_id, alert_type)
     ''')
     
     conn.commit()
@@ -92,6 +131,56 @@ def save_container_stats(container_id, container_name, stats_data):
         conn.close()
     except Exception as e:
         print(f"❌ Error saving stats: {e}")
+
+
+def save_alert_to_database(alert, batch_id, email_sent):
+    """
+    Save alert to database
+    
+    Args:
+        alert: Alert object
+        batch_id: Batch identifier (UUID or timestamp)
+        email_sent: Whether email was sent successfully
+    """
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        # Calculate cooldown_until based on alert config
+        cooldown_minutes = 15  # Default
+        if ALERTS_ENABLED:
+            try:
+                config = get_alert_config()
+                if alert.alert_type.value == 'recovery':
+                    cooldown_minutes = config.get('alerts.recovery_cooldown_minutes', 5)
+                else:
+                    cooldown_minutes = config.get('alerts.cooldown_minutes', 15)
+            except:
+                pass
+        
+        cooldown_until = (datetime.now() + timedelta(minutes=cooldown_minutes)).isoformat()
+        
+        cursor.execute('''
+            INSERT INTO alert_history
+            (batch_id, container_id, container_name, alert_type, priority, 
+             value, timestamp, email_sent, cooldown_until)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            batch_id,
+            alert.container_id,
+            alert.container_name,
+            alert.alert_type.value,
+            alert.priority.value,
+            alert.value,
+            alert.timestamp.isoformat(),
+            email_sent,
+            cooldown_until
+        ))
+        
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"❌ Error saving alert to database: {e}")
 
 
 def get_container_stats_history(container_id, days=7):
@@ -144,17 +233,28 @@ def cleanup_old_stats():
         # Limit date (7 days ago)
         limit_date = (datetime.now() - timedelta(days=7)).isoformat()
         
+        # Clean container stats
         cursor.execute('''
             DELETE FROM container_stats
             WHERE timestamp < ?
         ''', (limit_date,))
+        stats_deleted = cursor.rowcount
         
-        deleted_count = cursor.rowcount
+        # Clean alert history (keep 30 days)
+        alert_limit_date = (datetime.now() - timedelta(days=30)).isoformat()
+        cursor.execute('''
+            DELETE FROM alert_history
+            WHERE timestamp < ?
+        ''', (alert_limit_date,))
+        alerts_deleted = cursor.rowcount
+        
         conn.commit()
         conn.close()
         
-        if deleted_count > 0:
-            print(f"🧹 Cleaned {deleted_count} old records from database")
+        if stats_deleted > 0:
+            print(f"🧹 Cleaned {stats_deleted} old stats records from database")
+        if alerts_deleted > 0:
+            print(f"🧹 Cleaned {alerts_deleted} old alert records from database")
     except Exception as e:
         print(f"❌ Error cleaning database: {e}")
 
@@ -981,11 +1081,27 @@ def collect_stats_background():
     """Function that collects statistics in background every minute"""
     print("🔄 Statistics collection thread started")
     
+    # Initialize alert system
+    alert_manager = None
+    email_sender = None
+    if ALERTS_ENABLED:
+        try:
+            alert_manager = get_alert_manager()
+            email_sender = get_email_sender()
+            print("✅ Alert system initialized in background thread")
+        except Exception as e:
+            print(f"⚠️  Failed to initialize alert system: {e}")
+            alert_manager = None
+            email_sender = None
+    
     while True:
         if client:
             try:
                 containers = client.containers.list()
                 print(f"\n📊 Collecting stats for {len(containers)} containers...")
+                
+                # Prepare data for alert checking
+                containers_data_for_alerts = []
                 
                 for container in containers:
                     try:
@@ -1011,6 +1127,11 @@ def collect_stats_background():
                         mem_percent = (mem_usage / mem_limit) * 100.0 if mem_limit > 0 else 0.0
                         mem_usage_mb = mem_usage / (1024 * 1024)
                         mem_limit_mb = mem_limit / (1024 * 1024)
+                        
+                        # Get health status
+                        health_status = 'none'
+                        if 'Health' in container.attrs['State']:
+                            health_status = container.attrs['State']['Health']['Status']
                         
                         # Calculate Network I/O - cumulative values in bytes
                         networks = stats.get('networks', {})
@@ -1059,8 +1180,57 @@ def collect_stats_background():
                         save_container_stats(container.short_id, container.name, current_stats)
                         print(f"  ✅ {container.name}: CPU={cpu_percent:.1f}% RAM={mem_percent:.1f}% NET_IN={rates['net_input_mb_s']:.2f}MB/s")
                         
+                        # Prepare data for alert checking
+                        if alert_manager:
+                            containers_data_for_alerts.append({
+                                'container_id': container.id,
+                                'container_name': container.name,
+                                'cpu_percent': cpu_percent,
+                                'ram_percent': mem_percent,
+                                'health_status': health_status
+                            })
+                        
                     except Exception as e:
                         print(f"  ❌ Error collecting stats for {container.name}: {e}")
+                
+                # Check for alerts if system is enabled
+                if alert_manager and email_sender and containers_data_for_alerts:
+                    try:
+                        print("\n🚨 Checking for alerts...")
+                        alert_batch = alert_manager.check_all_containers(containers_data_for_alerts)
+                        
+                        # Send recovery emails (separate)
+                        if alert_batch.has_recovery():
+                            for recovery_alert in alert_batch.recovery_alerts:
+                                email_sent = email_sender.send_recovery_email(recovery_alert)
+                                
+                                # Save to database
+                                batch_id = f"recovery_{recovery_alert.timestamp.isoformat()}"
+                                save_alert_to_database(recovery_alert, batch_id, email_sent)
+                                
+                                if email_sent:
+                                    print(f"   ✅ Recovery email sent for {recovery_alert.container_name}")
+                        
+                        # Send aggregate alert email
+                        if alert_batch.has_alerts():
+                            batch_id = f"batch_{alert_batch.timestamp.isoformat()}"
+                            email_sent = email_sender.send_alert_email(alert_batch)
+                            
+                            # Save all alerts to database
+                            for alert in alert_batch.critical_alerts + alert_batch.warning_alerts:
+                                save_alert_to_database(alert, batch_id, email_sent)
+                            
+                            if email_sent:
+                                critical_count = len(alert_batch.critical_alerts)
+                                warning_count = len(alert_batch.warning_alerts)
+                                print(f"   ✅ Alert email sent: {critical_count} critical, {warning_count} warning")
+                        else:
+                            print("   ✓ No alerts triggered")
+                            
+                    except Exception as e:
+                        print(f"   ❌ Error in alert system: {e}")
+                        import traceback
+                        traceback.print_exc()
                 
                 # Database cleanup every cycle
                 cleanup_old_stats()

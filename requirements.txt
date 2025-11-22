@@ -2,3 +2,4 @@ utils
 flask
 docker
 psutil
+PyYAML>=6.0

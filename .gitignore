@@ -9,3 +9,6 @@ docker-compose.yml
 Dockerfile 
 .dockerignore
 data/
+config/alerts.yml
+# Keep template
+!config/alerts.yml.template

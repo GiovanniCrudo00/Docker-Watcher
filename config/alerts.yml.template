@@ -1,0 +1,88 @@
+# ============================================
+# 🚨 Docker Watcher Alert Configuration
+# ============================================
+# 
+# Instructions:
+# 1. Copy this file to 'alerts.yml' in the same directory
+# 2. Edit the values below with your settings
+# 3. Never commit 'alerts.yml' to version control (contains passwords)
+#
+# cp config/alerts.yml.template config/alerts.yml
+# ============================================
+
+# Application settings
+app:
+  base_url: "http://localhost:5001"  # Base URL for container links in emails
+
+# Alert thresholds
+thresholds:
+  cpu_percent: 90          # CPU threshold (%)
+  ram_percent: 90          # RAM threshold (%)
+  duration_minutes: 3      # How many consecutive minutes above threshold to trigger alert
+
+# Alert behavior
+alerts:
+  enabled: true                        # Master switch for alerting system
+  cooldown_minutes: 15                 # Wait time before sending same alert again
+  recovery_cooldown_minutes: 5         # Wait time for recovery notifications (flapping protection)
+  aggregation_window_seconds: 60       # Time window to aggregate multiple alerts into one email
+
+# Priority levels
+priorities:
+  critical:
+    subject_prefix: "🚨 CRITICAL"
+    triggers:
+      - unhealthy_container
+  warning:
+    subject_prefix: "⚠️ WARNING"
+    triggers:
+      - high_cpu
+      - high_ram
+
+# Email configuration
+email:
+  enabled: true
+  
+  # SMTP Server settings
+  smtp_server: "smtp.gmail.com"
+  smtp_port: 587
+  use_tls: true
+  
+  # Sender credentials
+  # For Gmail: Use an "App Password" instead of your regular password
+  # For Gmail: Make sure to activate 2FA in order to set "App Password"
+  # Generate at: https://myaccount.google.com/apppasswords
+  sender_email: "your-email@gmail.com"
+  sender_password: "your-app-password-here"
+  
+  # Recipients
+  recipient_emails:
+    - "admin@example.com"
+    - "alerts@example.com"
+  
+  # Email format options
+  include_container_links: true    # Include direct links to container detail pages
+  include_stats_history: true      # Include recent stats history in alert
+  max_history_points: 5            # Number of historical data points to include
+
+# Recovery notifications
+recovery:
+  send_email: true                 # Send email when container recovers from unhealthy state
+  include_downtime: true           # Include downtime duration in recovery email
+
+# Container-specific rules (optional)
+# Override global thresholds for specific containers
+container_rules: []
+  # Example:
+  # - name: "critical-database"
+  #   cpu_threshold: 80
+  #   ram_threshold: 85
+  #   priority: "critical"
+  # 
+  # - name: "dev-container"
+  #   alerts_disabled: true
+
+# Logging
+logging:
+  log_alerts_to_console: true      # Print alerts to console
+  log_alerts_to_database: true     # Save alerts to database for history
